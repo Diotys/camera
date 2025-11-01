@@ -1,0 +1,60 @@
+﻿2025-10-15 15:48:14.770 INFO  [15124] [CameraInit@966] CameraInit enter, SDKVersion:2.1.10.188
+ProductSeries:GiGeCamera
+FriendlyName:MV-L164C-10G
+LinkName:7017-DC.A5.01.14.03.25
+DriverVersion:1.5.2.64
+SensorType:LineScan 16K
+PortType:NET-1000M-192.168.0.236
+Sn:075021923006
+Instance:255
+2025-10-15 15:48:14.771 INFO  [15124] [CMVCAMSDK::CameraInit@548] Before load interface
+2025-10-15 15:48:14.773 INFO  [15124] [CMVCAMSDK::CameraInit@556] Before load isp
+2025-10-15 15:48:14.775 INFO  [15124] [CMVCAMSDK::CameraInit@571] Before instance init
+2025-10-15 15:48:14.777 INFO  [15124] [CMVCAMSDK::CameraInit@573] After instance init ret:32774
+2025-10-15 15:48:14.782 ERROR [15124] [CameraInit@1038] CameraInit return, status:32774,FriendlyName:MV-L164C-10G,SN:075021923006
+2025-10-15 15:48:23.121 INFO  [15124] [CameraInit@966] CameraInit enter, SDKVersion:2.1.10.188
+ProductSeries:GiGeCamera
+FriendlyName:MV-L164C-10G
+LinkName:7017-DC.A5.01.14.03.25
+DriverVersion:1.5.2.64
+SensorType:LineScan 16K
+PortType:NET-1000M-192.168.0.236
+Sn:075021923006
+Instance:255
+2025-10-15 15:48:23.121 INFO  [15124] [CMVCAMSDK::CameraInit@548] Before load interface
+2025-10-15 15:48:23.123 INFO  [15124] [CMVCAMSDK::CameraInit@556] Before load isp
+2025-10-15 15:48:23.125 INFO  [15124] [CMVCAMSDK::CameraInit@571] Before instance init
+2025-10-15 15:48:23.129 INFO  [15124] [CMVCAMSDK::CameraInit@573] After instance init ret:32774
+2025-10-15 15:48:23.132 ERROR [15124] [CameraInit@1038] CameraInit return, status:32774,FriendlyName:MV-L164C-10G,SN:075021923006
+2025-10-15 15:48:37.684 INFO  [25000] [CameraInit@966] CameraInit enter, SDKVersion:2.1.10.188
+ProductSeries:GiGeCamera
+FriendlyName:MV-L164C-10G
+LinkName:7017-DC.A5.01.14.03.25
+DriverVersion:1.5.2.64
+SensorType:LineScan 16K
+PortType:NET-1000M-192.168.0.236
+Sn:075021923006
+Instance:0
+2025-10-15 15:48:37.684 INFO  [25000] [CMVCAMSDK::CameraInit@548] Before load interface
+2025-10-15 15:48:37.686 INFO  [25000] [CMVCAMSDK::CameraInit@556] Before load isp
+2025-10-15 15:48:37.689 INFO  [25000] [CMVCAMSDK::CameraInit@571] Before instance init
+2025-10-15 15:48:38.537 INFO  [25000] [CMVCAMSDK::CameraInit@573] After instance init ret:0
+2025-10-15 15:48:38.537 INFO  [25000] [CameraInit@1034] CameraInit return, status:0,FriendlyName:MV-L164C-10G,SN:075021923006
+2025-10-15 15:54:31.020 WARN  [19116] [uiFrameEventThread@310] Device:MV-L164C-10G SN:075021923006, Frame IDs are not consecutive, Prev=6 Current=1, Cap:7 Lost:0 Resend:12 Discard:0 Reconnect:0
+2025-10-15 16:00:16.168 WARN  [19116] [uiFrameEventThread@310] Device:MV-L164C-10G SN:075021923006, Frame IDs are not consecutive, Prev=1 Current=1, Cap:8 Lost:0 Resend:13 Discard:0 Reconnect:0
+2025-10-15 16:01:25.968 INFO  [25000] [CameraUnInit@1202] CameraUnInit ,FriendlyName:MV-L164C-10G,SN:075021923006
+2025-10-15 16:01:31.620 INFO  [25000] [CameraInit@966] CameraInit enter, SDKVersion:2.1.10.188
+ProductSeries:GiGeCamera
+FriendlyName:MV-L164C-10G
+LinkName:7017-DC.A5.01.14.03.25
+DriverVersion:1.5.2.64
+SensorType:LineScan 16K
+PortType:NET-1000M-192.168.0.236
+Sn:075021923006
+Instance:0
+2025-10-15 16:01:31.620 INFO  [25000] [CMVCAMSDK::CameraInit@548] Before load interface
+2025-10-15 16:01:31.622 INFO  [25000] [CMVCAMSDK::CameraInit@556] Before load isp
+2025-10-15 16:01:31.624 INFO  [25000] [CMVCAMSDK::CameraInit@571] Before instance init
+2025-10-15 16:01:32.737 INFO  [25000] [CMVCAMSDK::CameraInit@573] After instance init ret:0
+2025-10-15 16:01:32.737 INFO  [25000] [CameraInit@1034] CameraInit return, status:0,FriendlyName:MV-L164C-10G,SN:075021923006
+2025-10-15 16:01:43.966 INFO  [25000] [CameraUnInit@1202] CameraUnInit ,FriendlyName:MV-L164C-10G,SN:075021923006

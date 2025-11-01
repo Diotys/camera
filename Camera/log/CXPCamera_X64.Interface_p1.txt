@@ -1,0 +1,5 @@
+﻿2025-09-30 19:46:48.937 INFO  [20788] [FindCoaXPress@148] CtiPath: C:\Program Files\Cxp FlexIO\cti\x86_64\cxplink_gentl.cti
+2025-09-30 19:46:59.548 INFO  [22368] [FindCoaXPress@148] CtiPath: C:\Program Files\Cxp FlexIO\cti\x86_64\cxplink_gentl.cti
+2025-09-30 19:47:12.709 INFO  [22368] [FindCoaXPress@148] CtiPath: C:\Program Files\Cxp FlexIO\cti\x86_64\cxplink_gentl.cti
+2025-10-15 14:12:44.262 INFO  [25536] [FindCoaXPress@148] CtiPath: C:\Program Files\Cxp FlexIO\cti\x86_64\cxplink_gentl.cti
+2025-10-15 15:43:42.326 INFO  [16172] [FindCoaXPress@148] CtiPath: C:\Program Files\Cxp FlexIO\cti\x86_64\cxplink_gentl.cti

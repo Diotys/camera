@@ -1,0 +1,53 @@
+﻿2025-09-30 19:46:49.182 INFO  [20788] [CCameraGigeBase::Init@1104] Before base init
+2025-09-30 19:46:49.185 WARN  [20788] [CCameraXGigeBase::InitDev@233] Function:CCameraXGigeBase::InitDev, Code:iret, Error:32774
+2025-09-30 19:46:49.185 INFO  [20788] [CCameraGigeBase::Init@1106] After base init ret:32774
+2025-09-30 19:46:59.806 INFO  [22368] [CCameraGigeBase::Init@1104] Before base init
+2025-09-30 19:46:59.808 WARN  [22368] [CCameraXGigeBase::InitDev@233] Function:CCameraXGigeBase::InitDev, Code:iret, Error:32774
+2025-09-30 19:46:59.808 INFO  [22368] [CCameraGigeBase::Init@1106] After base init ret:32774
+2025-09-30 19:47:03.906 INFO  [22368] [CCameraGigeBase::Init@1104] Before base init
+2025-09-30 19:47:03.908 WARN  [22368] [CCameraXGigeBase::InitDev@233] Function:CCameraXGigeBase::InitDev, Code:iret, Error:32774
+2025-09-30 19:47:03.908 INFO  [22368] [CCameraGigeBase::Init@1106] After base init ret:32774
+2025-09-30 19:47:06.573 INFO  [22368] [CCameraGigeBase::Init@1104] Before base init
+2025-09-30 19:47:06.574 WARN  [22368] [CCameraXGigeBase::InitDev@233] Function:CCameraXGigeBase::InitDev, Code:iret, Error:32774
+2025-09-30 19:47:06.574 INFO  [22368] [CCameraGigeBase::Init@1106] After base init ret:32774
+2025-09-30 19:47:14.387 INFO  [22368] [CCameraGigeBase::Init@1104] Before base init
+2025-09-30 19:47:14.390 WARN  [22368] [CCameraXGigeBase::InitDev@233] Function:CCameraXGigeBase::InitDev, Code:iret, Error:32774
+2025-09-30 19:47:14.390 INFO  [22368] [CCameraGigeBase::Init@1106] After base init ret:32774
+2025-09-30 19:47:16.853 INFO  [22368] [CCameraGigeBase::Init@1104] Before base init
+2025-09-30 19:47:16.855 WARN  [22368] [CCameraXGigeBase::InitDev@233] Function:CCameraXGigeBase::InitDev, Code:iret, Error:32774
+2025-09-30 19:47:16.855 INFO  [22368] [CCameraGigeBase::Init@1106] After base init ret:32774
+2025-10-15 15:43:44.273 INFO  [12900] [CCameraGigeBase::Init@1104] Before base init
+2025-10-15 15:43:45.493 INFO  [12900] [CCameraGigeBase::Init@1106] After base init ret:0
+2025-10-15 15:43:45.508 INFO  [12900] [CCameraGigeBase::InitDevParam@1066] Packet Size:8000
+2025-10-15 15:43:45.508 INFO  [12900] [CMVCameraBase::UpdateParam@5658] Before IntProperty
+2025-10-15 15:43:45.516 INFO  [12900] [CMVCameraBase::UpdateParam@5668] Before PROP_SHEET_INDEX_IO_CTRL
+2025-10-15 15:43:45.525 INFO  [12900] [CMVCameraBase::UpdateParam@5682] Before PROP_SHEET_INDEX_VIDEO_FORMAT
+2025-10-15 15:43:45.534 INFO  [12900] [CMVCameraBase::UpdateParam@5708] Before PROP_SHEET_INDEX_TRIGGER_SET
+2025-10-15 15:43:45.548 INFO  [12900] [CMVCameraBase::UpdateParam@5731] Before PROP_SHEET_INDEX_EXPOSURE
+2025-10-15 15:43:45.572 INFO  [12900] [CMVCameraBase::UpdateParam@5749] Before PROP_SHEET_INDEX_ISP_COLOR
+2025-10-15 15:43:45.590 INFO  [12900] [CMVCameraBase::UpdateParam@5765] Before PROP_SHEET_INDEX_NEW_ISP_COLOR
+2025-10-15 15:43:45.596 INFO  [12900] [CMVCameraBase::UpdateParam@5799] Before PROP_SHEET_INDEX_ISP_LUT
+2025-10-15 15:43:45.612 INFO  [12900] [CMVCameraBase::UpdateParam@5809] Before PROP_SHEET_INDEX_ISP_SHAPE
+2025-10-15 15:43:45.618 INFO  [12900] [CMVCameraBase::UpdateParam@5828] Before PROP_SHEET_INDEX_RESOLUTION
+2025-10-15 15:43:45.679 INFO  [12900] [CMVCameraBase::UpdateParam@5851] Before PROP_SHEET_INDEX_OPTIONS_I
+2025-10-15 15:43:45.679 INFO  [12900] [CMVCameraBase::UpdateParam@5869] Before PROP_SHEET_INDEX_IO_CTRL
+2025-10-15 15:43:45.687 INFO  [12900] [CMVCameraBase::UpdateParam@5880] Before PROP_SHEET_INDEX_MULTI_EXPOSURE
+2025-10-15 15:43:45.719 INFO  [12900] [CMVCameraBase::UpdateParam@5932] Parameter write completed
+2025-10-15 15:47:39.219 WARN  [16172] [CNetDriverUDP::SendCommand@268] reg=0x100001D0 no ACK received, retrys: 1
+2025-10-15 16:02:01.395 INFO  [19632] [CCameraGigeBase::Init@1104] Before base init
+2025-10-15 16:02:13.659 INFO  [19632] [CCameraGigeBase::Init@1106] After base init ret:0
+2025-10-15 16:02:13.678 INFO  [19632] [CCameraGigeBase::InitDevParam@1066] Packet Size:8000
+2025-10-15 16:02:13.678 INFO  [19632] [CMVCameraBase::UpdateParam@5658] Before IntProperty
+2025-10-15 16:02:13.686 INFO  [19632] [CMVCameraBase::UpdateParam@5668] Before PROP_SHEET_INDEX_IO_CTRL
+2025-10-15 16:02:13.697 INFO  [19632] [CMVCameraBase::UpdateParam@5682] Before PROP_SHEET_INDEX_VIDEO_FORMAT
+2025-10-15 16:02:13.707 INFO  [19632] [CMVCameraBase::UpdateParam@5708] Before PROP_SHEET_INDEX_TRIGGER_SET
+2025-10-15 16:02:13.722 INFO  [19632] [CMVCameraBase::UpdateParam@5731] Before PROP_SHEET_INDEX_EXPOSURE
+2025-10-15 16:02:13.749 INFO  [19632] [CMVCameraBase::UpdateParam@5749] Before PROP_SHEET_INDEX_ISP_COLOR
+2025-10-15 16:02:13.767 INFO  [19632] [CMVCameraBase::UpdateParam@5765] Before PROP_SHEET_INDEX_NEW_ISP_COLOR
+2025-10-15 16:02:13.773 INFO  [19632] [CMVCameraBase::UpdateParam@5799] Before PROP_SHEET_INDEX_ISP_LUT
+2025-10-15 16:02:13.789 INFO  [19632] [CMVCameraBase::UpdateParam@5809] Before PROP_SHEET_INDEX_ISP_SHAPE
+2025-10-15 16:02:13.793 INFO  [19632] [CMVCameraBase::UpdateParam@5828] Before PROP_SHEET_INDEX_RESOLUTION
+2025-10-15 16:02:13.856 INFO  [19632] [CMVCameraBase::UpdateParam@5851] Before PROP_SHEET_INDEX_OPTIONS_I
+2025-10-15 16:02:13.856 INFO  [19632] [CMVCameraBase::UpdateParam@5869] Before PROP_SHEET_INDEX_IO_CTRL
+2025-10-15 16:02:13.864 INFO  [19632] [CMVCameraBase::UpdateParam@5880] Before PROP_SHEET_INDEX_MULTI_EXPOSURE
+2025-10-15 16:02:13.898 INFO  [19632] [CMVCameraBase::UpdateParam@5932] Parameter write completed
