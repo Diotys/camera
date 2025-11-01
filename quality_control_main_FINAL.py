@@ -399,6 +399,404 @@ class HIFLYCamera:
         self.is_connected = False
 
 # ============================================================================
+# CAMERA LINÉAIRE 16K - CONTROLLER AVEC TRIGGER ENCODEUR
+# ============================================================================
+
+class CameraLinearController:
+    """
+    Contrôleur pour caméra linéaire HIFLY MV-L164C-10G (16384x6 pixels)
+    avec trigger externe encodeur synchronisé au mouvement CNC.
+
+    Workflow identique au Keyence :
+    - Connexion caméra avec trigger encodeur externe
+    - Capture synchronisée pendant scan CNC
+    - Accumulation de lignes pour former des bandes d'image
+    - Sauvegarde pour assemblage ultérieur
+    """
+
+    def __init__(self, config: CameraConfig, log_callback=None):
+        self.config = config
+        self.log_callback = log_callback
+
+        # Caméra HIFLY de base
+        self.camera = HIFLYCamera(config)
+
+        # État de connexion et capture
+        self.is_connected = False
+        self.is_capturing = False
+
+        # Buffers de données
+        self.captured_lines = []  # Liste de lignes capturées
+        self.num_lines_captured = 0
+
+        # Thread de capture
+        self.capture_thread = None
+        self.capture_running = False
+        self.capture_lock = threading.Lock()
+
+        # Paramètres encodeur
+        self.encoder_step_mm = 0.025  # 25 microns comme le Keyence
+
+        # Bandes d'images (pour scan serpentin)
+        self.image_bands = []  # Liste des bandes capturées
+        self.current_band = None
+
+    def _log(self, message: str, level: str = "info"):
+        """Logger interne"""
+        if self.log_callback:
+            try:
+                self.log_callback(message, level)
+            except Exception as e:
+                print(f"Erreur log callback: {e}")
+        else:
+            print(f"[{level.upper()}] {message}")
+
+    def connect(self) -> bool:
+        """
+        Connecter la caméra et configurer le trigger externe encodeur
+        """
+        try:
+            self._log("=" * 60)
+            self._log("🔍 CONNEXION CAMÉRA LINÉAIRE 16K")
+            self._log("=" * 60)
+
+            # Connexion de base via HIFLYCamera
+            if not self.camera.connect():
+                self._log("❌ Échec connexion caméra de base", "error")
+                return False
+
+            # Configuration du trigger externe (encodeur)
+            self._log("🔧 Configuration trigger externe (encodeur)...")
+
+            if not MVSDK_AVAILABLE:
+                self._log("❌ SDK MVSDK non disponible", "error")
+                return False
+
+            try:
+                # Obtenir les capacités de la caméra
+                cap = mvsdk.CameraGetCapability(self.camera.hCamera)
+
+                # Afficher les modes de trigger disponibles
+                num_trigger_modes = cap.iTriggerDesc
+                self._log(f"   📋 Modes trigger disponibles : {num_trigger_modes}")
+
+                for i in range(num_trigger_modes):
+                    trigger_desc = cap.pTriggerDesc[i]
+                    desc = trigger_desc.GetDescription()
+                    self._log(f"      Mode {i}: {desc}")
+
+                # Configurer mode trigger externe
+                # Mode 0 = Continu (free run)
+                # Mode 1 = Software trigger
+                # Mode 2+ = Hardware trigger (externe)
+
+                # Pour caméra linéaire avec encodeur, on utilise généralement le mode 2 ou plus
+                # selon le fabricant (Rising edge, Falling edge, etc.)
+                trigger_mode = 2 if num_trigger_modes > 2 else 1
+
+                self._log(f"   🎯 Configuration mode trigger: {trigger_mode}")
+                mvsdk.CameraSetTriggerMode(self.camera.hCamera, trigger_mode)
+
+                # Vérification
+                current_mode = mvsdk.CameraGetTriggerMode(self.camera.hCamera)
+                self._log(f"   ✅ Mode trigger activé: {current_mode}")
+
+                # Réglages optimisés pour caméra linéaire
+                self._log("   ⚙️  Réglages optimisés...")
+
+                # Exposition adaptée
+                mvsdk.CameraSetExposureTime(self.camera.hCamera, int(self.config.exposure_time))
+                self._log(f"      Exposition: {self.config.exposure_time} µs")
+
+                # Gain
+                try:
+                    mvsdk.CameraSetAnalogGain(self.camera.hCamera, int(self.config.gain))
+                    self._log(f"      Gain: {self.config.gain}")
+                except Exception:
+                    pass
+
+                self.is_connected = True
+                self._log("=" * 60)
+                self._log("✅ CAMÉRA LINÉAIRE PRÊTE - TRIGGER ENCODEUR ACTIF")
+                self._log("=" * 60)
+
+                return True
+
+            except Exception as e:
+                self._log(f"❌ Erreur configuration trigger: {e}", "error")
+                import traceback
+                self._log(traceback.format_exc(), "error")
+                return False
+
+        except Exception as e:
+            self._log(f"❌ Erreur connexion: {e}", "error")
+            import traceback
+            self._log(traceback.format_exc(), "error")
+            return False
+
+    def start_capture_encoder(self) -> bool:
+        """
+        Démarrer la capture synchronisée encodeur
+        Similaire à keyence.start_capture_encoder()
+        """
+        if not self.is_connected:
+            self._log("❌ Caméra non connectée", "error")
+            return False
+
+        if self.is_capturing:
+            self._log("⚠️ Capture déjà en cours", "warning")
+            return False
+
+        try:
+            self._log("🎬 DÉMARRAGE CAPTURE ENCODEUR")
+
+            # Reset buffers
+            with self.capture_lock:
+                self.captured_lines = []
+                self.num_lines_captured = 0
+                self.current_band = None
+
+            # Démarrer thread de capture
+            self.capture_running = True
+            self.is_capturing = True
+
+            self.capture_thread = threading.Thread(
+                target=self._capture_worker,
+                daemon=True
+            )
+            self.capture_thread.start()
+
+            self._log("✅ Capture encodeur démarrée - En attente de signaux encodeur...")
+            return True
+
+        except Exception as e:
+            self._log(f"❌ Erreur démarrage capture: {e}", "error")
+            import traceback
+            self._log(traceback.format_exc(), "error")
+            return False
+
+    def _capture_worker(self):
+        """
+        Thread worker qui capture les lignes en continu
+        déclenché par les signaux encodeur externe
+        """
+        self._log("🔄 Thread capture démarré")
+
+        consecutive_errors = 0
+        max_consecutive_errors = 10
+
+        while self.capture_running:
+            try:
+                # Attendre une ligne déclenchée par l'encodeur
+                # Le trigger externe (encodeur) déclenche automatiquement la caméra
+
+                # Acquisition d'une ligne
+                pRawData, FrameHead = mvsdk.CameraGetImageBuffer(
+                    self.camera.hCamera,
+                    1000  # Timeout 1 seconde
+                )
+
+                # Traitement de l'image
+                mvsdk.CameraImageProcess(
+                    self.camera.hCamera,
+                    pRawData,
+                    self.camera.pFrameBuffer,
+                    FrameHead
+                )
+                mvsdk.CameraReleaseImageBuffer(self.camera.hCamera, pRawData)
+
+                # Flip si Windows
+                if platform.system() == "Windows":
+                    mvsdk.CameraFlipFrameBuffer(
+                        self.camera.pFrameBuffer,
+                        FrameHead,
+                        1
+                    )
+
+                # Convertir en numpy array
+                frame_data = (mvsdk.c_ubyte * FrameHead.uBytes).from_address(
+                    self.camera.pFrameBuffer
+                )
+                line_data = np.frombuffer(frame_data, dtype=np.uint8)
+
+                # Reshape selon format (mono ou couleur)
+                if self.camera.monoCamera or FrameHead.uiMediaType == mvsdk.CAMERA_MEDIA_TYPE_MONO8:
+                    line_data = line_data.reshape((FrameHead.iHeight, FrameHead.iWidth, 1))
+                else:
+                    line_data = line_data.reshape((FrameHead.iHeight, FrameHead.iWidth, 3))
+
+                # Stocker les lignes capturées
+                with self.capture_lock:
+                    # Pour une caméra linéaire 16K x 6, on a 6 lignes par acquisition
+                    # On les stocke toutes
+                    for i in range(line_data.shape[0]):
+                        single_line = line_data[i:i+1, :, :].copy()  # Copie pour éviter les références
+                        self.captured_lines.append(single_line)
+
+                    self.num_lines_captured += line_data.shape[0]
+
+                # Reset compteur d'erreurs
+                consecutive_errors = 0
+
+            except mvsdk.CameraException as e:
+                if e.error_code == mvsdk.CAMERA_STATUS_TIME_OUT:
+                    # Timeout normal si pas de signal encodeur
+                    time.sleep(0.01)
+                    continue
+                else:
+                    consecutive_errors += 1
+                    self._log(f"⚠️ Erreur capture ({e.error_code}): {e.message}", "warning")
+
+                    if consecutive_errors >= max_consecutive_errors:
+                        self._log("❌ Trop d'erreurs consécutives - Arrêt capture", "error")
+                        break
+
+                    time.sleep(0.1)
+
+            except Exception as e:
+                consecutive_errors += 1
+                self._log(f"⚠️ Erreur inattendue: {e}", "warning")
+
+                if consecutive_errors >= max_consecutive_errors:
+                    self._log("❌ Trop d'erreurs consécutives - Arrêt capture", "error")
+                    break
+
+                time.sleep(0.1)
+
+        self._log("🛑 Thread capture arrêté")
+
+    def get_line_count(self) -> int:
+        """Obtenir le nombre de lignes capturées"""
+        with self.capture_lock:
+            return self.num_lines_captured
+
+    def stop_capture(self) -> bool:
+        """
+        Arrêter la capture et récupérer l'image complète
+        """
+        if not self.is_capturing:
+            self._log("⚠️ Aucune capture en cours", "warning")
+            return False
+
+        try:
+            self._log("🛑 ARRÊT CAPTURE")
+
+            # Arrêter le thread
+            self.capture_running = False
+
+            if self.capture_thread and self.capture_thread.is_alive():
+                self.capture_thread.join(timeout=3.0)
+
+            self.is_capturing = False
+
+            # Assembler les lignes en une image
+            with self.capture_lock:
+                num_lines = len(self.captured_lines)
+                self._log(f"📊 Lignes capturées: {num_lines}")
+
+                if num_lines > 0:
+                    # Empiler toutes les lignes verticalement
+                    self.current_band = np.vstack(self.captured_lines)
+                    self._log(f"   📐 Dimensions bande: {self.current_band.shape}")
+
+                    # Ajouter à la liste des bandes
+                    self.image_bands.append(self.current_band.copy())
+
+                    self._log(f"✅ Bande {len(self.image_bands)} créée : {self.current_band.shape}")
+
+                    return True
+                else:
+                    self._log("⚠️ Aucune ligne capturée", "warning")
+                    return False
+
+        except Exception as e:
+            self._log(f"❌ Erreur arrêt capture: {e}", "error")
+            import traceback
+            self._log(traceback.format_exc(), "error")
+            return False
+
+    def save_current_band(self, filepath: str) -> bool:
+        """
+        Sauvegarder la bande actuelle
+        """
+        if self.current_band is None:
+            self._log("❌ Aucune bande à sauvegarder", "error")
+            return False
+
+        try:
+            filepath_abs = Path(filepath).resolve()
+            parent_dir = filepath_abs.parent
+            parent_dir.mkdir(parents=True, exist_ok=True)
+
+            # Sauvegarder l'image
+            self.camera.save_image(self.current_band, str(filepath_abs))
+
+            self._log(f"💾 Bande sauvegardée: {filepath_abs}")
+            return True
+
+        except Exception as e:
+            self._log(f"❌ Erreur sauvegarde: {e}", "error")
+            return False
+
+    def save_all_bands(self, output_dir: str, prefix: str = "band") -> bool:
+        """
+        Sauvegarder toutes les bandes
+        """
+        try:
+            output_path = Path(output_dir)
+            output_path.mkdir(parents=True, exist_ok=True)
+
+            for i, band in enumerate(self.image_bands):
+                filename = f"{prefix}_{i:03d}.tiff"
+                filepath = output_path / filename
+
+                # Utiliser la méthode save_image de HIFLYCamera
+                self.camera.save_image(band, str(filepath))
+
+                self._log(f"💾 Bande {i+1}/{len(self.image_bands)} sauvegardée: {filename}")
+
+            self._log(f"✅ Toutes les bandes sauvegardées dans: {output_dir}")
+            return True
+
+        except Exception as e:
+            self._log(f"❌ Erreur sauvegarde bandes: {e}", "error")
+            return False
+
+    def reset_bands(self):
+        """Réinitialiser les bandes capturées"""
+        with self.capture_lock:
+            self.image_bands = []
+            self.current_band = None
+            self.captured_lines = []
+            self.num_lines_captured = 0
+        self._log("🔄 Bandes réinitialisées")
+
+    def disconnect(self):
+        """Déconnecter la caméra"""
+        try:
+            # Arrêter capture si en cours
+            if self.is_capturing:
+                self.stop_capture()
+
+            # Déconnecter caméra de base
+            self.camera.disconnect()
+
+            self.is_connected = False
+            self._log("✅ Caméra linéaire déconnectée")
+
+        except Exception as e:
+            self._log(f"⚠️ Erreur déconnexion: {e}", "warning")
+
+    # Méthodes compatibles avec l'API existante
+    def set_exposure(self, exposure_us: int):
+        """Régler l'exposition"""
+        self.camera.set_exposure(exposure_us)
+
+    def set_gain(self, gain_value: int):
+        """Régler le gain"""
+        self.camera.set_gain(gain_value)
+
+# ============================================================================
 # KEYENCE INTERFACE - AUCUNE SIMULATION
 # ============================================================================
 
@@ -1967,8 +2365,11 @@ class QualityControlGUI(QMainWindow):
         self.cnc_ui_timer = QTimer()
         self.cnc_ui_timer.timeout.connect(self.update_cnc_advanced_ui)
         self.cnc_ui_timer.start(500)
-        
-        self.camera = HIFLYCamera(self.camera_config)
+
+        # Caméra linéaire 16K avec trigger encodeur
+        self.camera_linear = CameraLinearController(self.camera_config, log_callback=self.log)
+
+        # Keyence profilomètre 3D
         self.keyence = KeyenceInterface(self.keyence_config)
         
         self.acquisition_thread = None
@@ -1995,9 +2396,10 @@ class QualityControlGUI(QMainWindow):
         tabs = QTabWidget()
         tabs.addTab(self.create_capture_tab(), "📷 Capture")
         tabs.addTab(self.create_connections_tab(), "🔌 Connexions")
+        tabs.addTab(self.create_camera_linear_tab(), "📸 Caméra 16K")  # ← NOUVEAU
         tabs.addTab(self.create_keyence_tab(), "📊 Keyence 3D")
         tabs.addTab(self.create_cnc_advanced_tab(), "🔧 CNC Avancé")
-        tabs.addTab(self.create_surface_scan_tab(), "🗺️ Scan Surface")  # ← NOUVEAU
+        tabs.addTab(self.create_surface_scan_tab(), "🗺️ Scan Surface")
         
         layout.addWidget(tabs)
         self.statusBar().showMessage("Prêt")
@@ -2168,12 +2570,266 @@ class QualityControlGUI(QMainWindow):
         state_layout.addWidget(self.keyence_progress)
         
         layout.addWidget(state_group)
-        
+
         layout.addStretch()
         return widget
-    
-    
-    
+
+    def create_camera_linear_tab(self):
+        """Créer l'onglet de contrôle de la caméra linéaire 16K"""
+        widget = QWidget()
+        layout = QVBoxLayout(widget)
+
+        # Groupe connexion
+        connection_group = QGroupBox("🔌 Connexion Caméra Linéaire 16K")
+        connection_layout = QGridLayout(connection_group)
+
+        self.btn_camera_connect = QPushButton("🔌 Connecter Caméra")
+        self.btn_camera_connect.clicked.connect(self.connect_camera_linear)
+        connection_layout.addWidget(self.btn_camera_connect, 0, 0)
+
+        self.btn_camera_disconnect = QPushButton("🔌 Déconnecter")
+        self.btn_camera_disconnect.clicked.connect(self.disconnect_camera_linear)
+        connection_layout.addWidget(self.btn_camera_disconnect, 0, 1)
+
+        self.lbl_camera_status = QLabel("État: Déconnecté")
+        self.lbl_camera_status.setStyleSheet("color: gray; font-weight: bold;")
+        connection_layout.addWidget(self.lbl_camera_status, 0, 2, 1, 2)
+
+        layout.addWidget(connection_group)
+
+        # Groupe paramètres
+        params_group = QGroupBox("⚙️ Paramètres Caméra")
+        params_layout = QGridLayout(params_group)
+
+        params_layout.addWidget(QLabel("Exposition (µs):"), 0, 0)
+        self.camera_exposure = QSpinBox()
+        self.camera_exposure.setRange(100, 50000)
+        self.camera_exposure.setValue(5000)
+        self.camera_exposure.valueChanged.connect(self.update_camera_exposure)
+        params_layout.addWidget(self.camera_exposure, 0, 1)
+
+        params_layout.addWidget(QLabel("Gain:"), 0, 2)
+        self.camera_gain = QSpinBox()
+        self.camera_gain.setRange(0, 100)
+        self.camera_gain.setValue(50)
+        self.camera_gain.valueChanged.connect(self.update_camera_gain)
+        params_layout.addWidget(self.camera_gain, 0, 3)
+
+        layout.addWidget(params_group)
+
+        # Groupe capture
+        capture_group = QGroupBox("📸 Capture Synchronisée Encodeur")
+        capture_layout = QVBoxLayout(capture_group)
+
+        info_label = QLabel(
+            "⚠️ Assurez-vous que l'encodeur est branché sur la caméra (pas sur le Keyence)\n"
+            "La caméra se déclenche automatiquement à chaque impulsion encodeur"
+        )
+        info_label.setStyleSheet("color: orange; font-style: italic;")
+        info_label.setWordWrap(True)
+        capture_layout.addWidget(info_label)
+
+        btn_layout = QHBoxLayout()
+
+        self.btn_camera_start_capture = QPushButton("▶️ Démarrer Capture Encodeur")
+        self.btn_camera_start_capture.setMinimumHeight(50)
+        self.btn_camera_start_capture.setStyleSheet("background-color: #4CAF50; color: white; font-weight: bold;")
+        self.btn_camera_start_capture.clicked.connect(self.start_camera_capture_encoder)
+        btn_layout.addWidget(self.btn_camera_start_capture)
+
+        self.btn_camera_stop_capture = QPushButton("⏹️ Arrêter Capture")
+        self.btn_camera_stop_capture.setMinimumHeight(50)
+        self.btn_camera_stop_capture.setStyleSheet("background-color: #f44336; color: white; font-weight: bold;")
+        self.btn_camera_stop_capture.clicked.connect(self.stop_camera_capture)
+        self.btn_camera_stop_capture.setEnabled(False)
+        btn_layout.addWidget(self.btn_camera_stop_capture)
+
+        capture_layout.addLayout(btn_layout)
+
+        layout.addWidget(capture_group)
+
+        # Groupe état
+        state_group = QGroupBox("📊 État Capture")
+        state_layout = QVBoxLayout(state_group)
+
+        self.lbl_camera_capture_state = QLabel("Prêt")
+        self.lbl_camera_capture_state.setStyleSheet("font-size: 14pt; font-weight: bold;")
+        state_layout.addWidget(self.lbl_camera_capture_state)
+
+        self.lbl_camera_lines_captured = QLabel("Lignes capturées: 0")
+        self.lbl_camera_lines_captured.setStyleSheet("font-size: 12pt;")
+        state_layout.addWidget(self.lbl_camera_lines_captured)
+
+        self.lbl_camera_bands = QLabel("Bandes enregistrées: 0")
+        self.lbl_camera_bands.setStyleSheet("font-size: 12pt;")
+        state_layout.addWidget(self.lbl_camera_bands)
+
+        layout.addWidget(state_group)
+
+        # Groupe sauvegarde
+        save_group = QGroupBox("💾 Sauvegarde")
+        save_layout = QVBoxLayout(save_group)
+
+        btn_save_band = QPushButton("💾 Sauvegarder Bande Actuelle")
+        btn_save_band.clicked.connect(self.save_current_camera_band)
+        save_layout.addWidget(btn_save_band)
+
+        btn_save_all = QPushButton("💾 Sauvegarder Toutes les Bandes")
+        btn_save_all.clicked.connect(self.save_all_camera_bands)
+        save_layout.addWidget(btn_save_all)
+
+        btn_reset = QPushButton("🔄 Réinitialiser Bandes")
+        btn_reset.clicked.connect(self.reset_camera_bands)
+        save_layout.addWidget(btn_reset)
+
+        layout.addWidget(save_group)
+
+        # Timer pour mise à jour de l'état
+        self.camera_ui_timer = QTimer()
+        self.camera_ui_timer.timeout.connect(self.update_camera_linear_ui)
+        self.camera_ui_timer.start(500)
+
+        layout.addStretch()
+        return widget
+
+    # Méthodes de contrôle caméra linéaire
+
+    def connect_camera_linear(self):
+        """Connecter la caméra linéaire"""
+        self.log("📸 Connexion caméra linéaire 16K...")
+
+        if self.camera_linear.connect():
+            self.lbl_camera_status.setText("État: ✅ Connecté - Trigger Encodeur Actif")
+            self.lbl_camera_status.setStyleSheet("color: green; font-weight: bold;")
+            self.log("✅ Caméra linéaire connectée avec trigger encodeur")
+        else:
+            self.lbl_camera_status.setText("État: ❌ Échec connexion")
+            self.lbl_camera_status.setStyleSheet("color: red; font-weight: bold;")
+            self.log("❌ Échec connexion caméra linéaire")
+            QMessageBox.critical(self, "Erreur", "Échec connexion caméra linéaire HIFLY 16K")
+
+    def disconnect_camera_linear(self):
+        """Déconnecter la caméra linéaire"""
+        self.camera_linear.disconnect()
+        self.lbl_camera_status.setText("État: Déconnecté")
+        self.lbl_camera_status.setStyleSheet("color: gray; font-weight: bold;")
+        self.log("📸 Caméra linéaire déconnectée")
+
+    def update_camera_exposure(self, value):
+        """Mettre à jour l'exposition de la caméra"""
+        if self.camera_linear.is_connected:
+            self.camera_linear.set_exposure(value)
+            self.log(f"⚙️ Exposition mise à jour: {value} µs")
+
+    def update_camera_gain(self, value):
+        """Mettre à jour le gain de la caméra"""
+        if self.camera_linear.is_connected:
+            self.camera_linear.set_gain(value)
+            self.log(f"⚙️ Gain mis à jour: {value}")
+
+    def start_camera_capture_encoder(self):
+        """Démarrer la capture synchronisée encodeur"""
+        if not self.camera_linear.is_connected:
+            QMessageBox.warning(self, "Erreur", "Caméra non connectée!")
+            return
+
+        self.log("▶️ Démarrage capture encodeur caméra linéaire...")
+
+        if self.camera_linear.start_capture_encoder():
+            self.btn_camera_start_capture.setEnabled(False)
+            self.btn_camera_stop_capture.setEnabled(True)
+            self.lbl_camera_capture_state.setText("🎬 CAPTURE EN COURS")
+            self.lbl_camera_capture_state.setStyleSheet("color: green; font-size: 14pt; font-weight: bold;")
+            self.log("✅ Capture encodeur démarrée - Bougez le CNC en X pour capturer")
+        else:
+            QMessageBox.critical(self, "Erreur", "Échec démarrage capture encodeur")
+
+    def stop_camera_capture(self):
+        """Arrêter la capture"""
+        self.log("⏹️ Arrêt capture...")
+
+        if self.camera_linear.stop_capture():
+            self.btn_camera_start_capture.setEnabled(True)
+            self.btn_camera_stop_capture.setEnabled(False)
+            self.lbl_camera_capture_state.setText("✅ Capture terminée")
+            self.lbl_camera_capture_state.setStyleSheet("color: blue; font-size: 14pt; font-weight: bold;")
+
+            num_bands = len(self.camera_linear.image_bands)
+            self.lbl_camera_bands.setText(f"Bandes enregistrées: {num_bands}")
+
+            self.log(f"✅ Capture terminée - {num_bands} bande(s) au total")
+        else:
+            QMessageBox.warning(self, "Avertissement", "Aucune ligne capturée")
+
+    def save_current_camera_band(self):
+        """Sauvegarder la bande actuelle"""
+        if self.camera_linear.current_band is None:
+            QMessageBox.warning(self, "Erreur", "Aucune bande à sauvegarder!")
+            return
+
+        timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+        output_dir = Path("captures") / "camera_linear"
+        output_dir.mkdir(parents=True, exist_ok=True)
+
+        filepath = output_dir / f"band_{timestamp}.tiff"
+
+        if self.camera_linear.save_current_band(str(filepath)):
+            self.log(f"💾 Bande sauvegardée: {filepath}")
+            QMessageBox.information(self, "Succès", f"Bande sauvegardée:\n{filepath}")
+        else:
+            QMessageBox.critical(self, "Erreur", "Échec sauvegarde bande")
+
+    def save_all_camera_bands(self):
+        """Sauvegarder toutes les bandes"""
+        num_bands = len(self.camera_linear.image_bands)
+
+        if num_bands == 0:
+            QMessageBox.warning(self, "Erreur", "Aucune bande à sauvegarder!")
+            return
+
+        timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+        output_dir = Path("captures") / "camera_linear" / f"scan_{timestamp}"
+
+        if self.camera_linear.save_all_bands(str(output_dir)):
+            self.log(f"💾 {num_bands} bande(s) sauvegardée(s) dans: {output_dir}")
+            QMessageBox.information(
+                self,
+                "Succès",
+                f"{num_bands} bande(s) sauvegardée(s):\n{output_dir}"
+            )
+        else:
+            QMessageBox.critical(self, "Erreur", "Échec sauvegarde bandes")
+
+    def reset_camera_bands(self):
+        """Réinitialiser les bandes capturées"""
+        reply = QMessageBox.question(
+            self,
+            "Confirmation",
+            "Voulez-vous vraiment réinitialiser toutes les bandes?\n"
+            "Les données non sauvegardées seront perdues!",
+            QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No
+        )
+
+        if reply == QMessageBox.StandardButton.Yes:
+            self.camera_linear.reset_bands()
+            self.lbl_camera_bands.setText("Bandes enregistrées: 0")
+            self.lbl_camera_lines_captured.setText("Lignes capturées: 0")
+            self.log("🔄 Bandes réinitialisées")
+
+    def update_camera_linear_ui(self):
+        """Mettre à jour l'interface caméra linéaire"""
+        if self.camera_linear.is_capturing:
+            num_lines = self.camera_linear.get_line_count()
+            self.lbl_camera_lines_captured.setText(f"Lignes capturées: {num_lines}")
+
+            # Calculer distance approximative
+            distance_mm = num_lines * self.camera_linear.encoder_step_mm
+            self.lbl_camera_capture_state.setText(
+                f"🎬 CAPTURE EN COURS - {num_lines} lignes (~{distance_mm:.1f} mm)"
+            )
+
+
+
     def connect_camera(self):
         self.log("📷 Connexion caméra...")
         
