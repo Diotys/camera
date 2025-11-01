@@ -83,6 +83,11 @@ class CameraConfig:
     line_rate: int = 25000
     exposure_time: float = 50000  # 50ms (testé et validé avec logiciel HIFLY)
     gain: float = 50.0
+    # Type de signal trigger pour encodeur externe:
+    # 0 = Front montant (Leading Edge)
+    # 1 = Front descendant (Trailing Edge)
+    # 4 = Double front (Double Edge)
+    trigger_signal_type: int = 4  # Double edge par défaut pour encodeur quadrature
 
 @dataclass
 class KeyenceConfig:
@@ -564,19 +569,19 @@ class CameraLinearController:
                 self._log(f"   ✅ Mode trigger configuré: {current_mode}")
 
                 # ⭐ CONFIGURATION TYPE DE SIGNAL TRIGGER (CRUCIAL POUR ENCODEUR!)
-                # Pour encodeur quadrature: utiliser front montant (leading edge)
+                # Pour encodeur quadrature: généralement double edge (fronts montants + descendants)
                 try:
-                    # EXT_TRIG_LEADING_EDGE = 0 (front montant)
-                    # EXT_TRIG_TRAILING_EDGE = 1 (front descendant)
-                    # EXT_TRIG_DOUBLE_EDGE = 4 (double front)
-                    mvsdk.CameraSetExtTrigSignalType(self.camera.hCamera, mvsdk.EXT_TRIG_LEADING_EDGE)
+                    # EXT_TRIG_LEADING_EDGE = 0 (front montant seulement)
+                    # EXT_TRIG_TRAILING_EDGE = 1 (front descendant seulement)
+                    # EXT_TRIG_DOUBLE_EDGE = 4 (fronts montants + descendants) ← Meilleur pour encodeur!
+                    mvsdk.CameraSetExtTrigSignalType(self.camera.hCamera, self.config.trigger_signal_type)
                     current_type = mvsdk.CameraGetExtTrigSignalType(self.camera.hCamera)
                     signal_types = {
                         0: "Front montant (Leading Edge)",
                         1: "Front descendant (Trailing Edge)",
                         2: "Niveau haut (High Level)",
                         3: "Niveau bas (Low Level)",
-                        4: "Double front (Double Edge)"
+                        4: "Double front (Double Edge) - Encodeur"
                     }
                     self._log(f"      ✅ Type signal trigger: {signal_types.get(current_type, current_type)}")
                 except Exception as e:
