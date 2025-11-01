@@ -822,7 +822,9 @@ class CameraLinearController:
 
             if self.capture_thread and self.capture_thread.is_alive():
                 self.capture_thread.join(timeout=3.0)
+                self._log("🛑 Thread capture arrêté")
 
+            # ⭐ TOUJOURS réinitialiser is_capturing (même si erreur ou 0 lignes)
             self.is_capturing = False
 
             # Restaurer mode trigger si c'était un test
@@ -852,6 +854,10 @@ class CameraLinearController:
                     return False
 
         except Exception as e:
+            # ⭐ CRITIQUE: Toujours réinitialiser is_capturing même en cas d'erreur!
+            self.is_capturing = False
+            self.capture_running = False
+
             self._log(f"❌ Erreur arrêt capture: {e}", "error")
             import traceback
             self._log(traceback.format_exc(), "error")
@@ -2922,10 +2928,15 @@ class QualityControlGUI(QMainWindow):
         """Arrêter la capture"""
         self.log("⏹️ Arrêt capture...")
 
-        if self.camera_linear.stop_capture():
-            self.btn_camera_start_capture.setEnabled(True)
-            self.btn_camera_test_continuous.setEnabled(True)
-            self.btn_camera_stop_capture.setEnabled(False)
+        # ⭐ TOUJOURS réactiver les boutons, même si stop_capture() retourne False
+        success = self.camera_linear.stop_capture()
+
+        # Réactiver les boutons dans tous les cas
+        self.btn_camera_start_capture.setEnabled(True)
+        self.btn_camera_test_continuous.setEnabled(True)
+        self.btn_camera_stop_capture.setEnabled(False)
+
+        if success:
             self.lbl_camera_capture_state.setText("✅ Capture terminée")
             self.lbl_camera_capture_state.setStyleSheet("color: blue; font-size: 14pt; font-weight: bold;")
 
@@ -2934,6 +2945,10 @@ class QualityControlGUI(QMainWindow):
 
             self.log(f"✅ Capture terminée - {num_bands} bande(s) au total")
         else:
+            # Même si aucune ligne capturée, réinitialiser l'état
+            self.lbl_camera_capture_state.setText("⚠️ Aucune ligne capturée")
+            self.lbl_camera_capture_state.setStyleSheet("color: orange; font-size: 14pt; font-weight: bold;")
+            self.log("⚠️ Aucune ligne capturée")
             QMessageBox.warning(self, "Avertissement", "Aucune ligne capturée")
 
     def save_current_camera_band(self):
