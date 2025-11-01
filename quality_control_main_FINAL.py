@@ -2907,6 +2907,77 @@ class QualityControlGUI(QMainWindow):
 
         layout.addWidget(save_group)
 
+        # Groupe Scan Serpentin
+        serpentin_group = QGroupBox("🔄 Scan Serpentin Automatique")
+        serpentin_layout = QVBoxLayout(serpentin_group)
+
+        # Info
+        info_serpentin = QLabel(
+            "Scan automatique en serpentin synchronisé avec encodeur CNC\n"
+            "Largeur caméra: ~82mm (16384 pixels × 5µm)"
+        )
+        info_serpentin.setStyleSheet("color: blue; font-style: italic;")
+        info_serpentin.setWordWrap(True)
+        serpentin_layout.addWidget(info_serpentin)
+
+        # Paramètres
+        params_serpentin_layout = QGridLayout()
+
+        params_serpentin_layout.addWidget(QLabel("Longueur bande X (mm):"), 0, 0)
+        self.camera_serpentin_length = QLineEdit("400")
+        params_serpentin_layout.addWidget(self.camera_serpentin_length, 0, 1)
+
+        params_serpentin_layout.addWidget(QLabel("Largeur totale Y (mm):"), 1, 0)
+        self.camera_serpentin_width = QLineEdit("200")
+        params_serpentin_layout.addWidget(self.camera_serpentin_width, 1, 1)
+
+        params_serpentin_layout.addWidget(QLabel("Recouvrement (%):"), 2, 0)
+        self.camera_serpentin_overlap = QLineEdit("10")
+        params_serpentin_layout.addWidget(self.camera_serpentin_overlap, 2, 1)
+
+        params_serpentin_layout.addWidget(QLabel("Vitesse CNC (mm/min):"), 3, 0)
+        self.camera_serpentin_speed = QLineEdit("100")
+        params_serpentin_layout.addWidget(self.camera_serpentin_speed, 3, 1)
+
+        serpentin_layout.addLayout(params_serpentin_layout)
+
+        # Boutons
+        btn_serpentin_layout = QHBoxLayout()
+
+        self.btn_camera_scan_start = QPushButton("▶️ Démarrer Scan Serpentin")
+        self.btn_camera_scan_start.setMinimumHeight(40)
+        self.btn_camera_scan_start.setStyleSheet("background-color: #2196F3; color: white; font-weight: bold;")
+        self.btn_camera_scan_start.clicked.connect(self.start_camera_serpentin_scan)
+        btn_serpentin_layout.addWidget(self.btn_camera_scan_start)
+
+        self.btn_camera_scan_cancel = QPushButton("🛑 Annuler Scan")
+        self.btn_camera_scan_cancel.setMinimumHeight(40)
+        self.btn_camera_scan_cancel.setStyleSheet("background-color: #f44336; color: white; font-weight: bold;")
+        self.btn_camera_scan_cancel.clicked.connect(self.cancel_camera_serpentin_scan)
+        self.btn_camera_scan_cancel.setEnabled(False)
+        btn_serpentin_layout.addWidget(self.btn_camera_scan_cancel)
+
+        serpentin_layout.addLayout(btn_serpentin_layout)
+
+        # Progression
+        self.camera_serpentin_progress = QProgressBar()
+        serpentin_layout.addWidget(self.camera_serpentin_progress)
+
+        self.camera_serpentin_status = QLabel("Prêt pour scan serpentin")
+        self.camera_serpentin_status.setStyleSheet("font-weight: bold;")
+        serpentin_layout.addWidget(self.camera_serpentin_status)
+
+        # Log serpentin
+        log_serpentin_label = QLabel("📋 Log Scan Serpentin:")
+        serpentin_layout.addWidget(log_serpentin_label)
+
+        self.camera_serpentin_log = QTextEdit()
+        self.camera_serpentin_log.setReadOnly(True)
+        self.camera_serpentin_log.setMaximumHeight(200)
+        serpentin_layout.addWidget(self.camera_serpentin_log)
+
+        layout.addWidget(serpentin_group)
+
         # Timer pour mise à jour de l'état
         self.camera_ui_timer = QTimer()
         self.camera_ui_timer.timeout.connect(self.update_camera_linear_ui)
@@ -3079,6 +3150,262 @@ class QualityControlGUI(QMainWindow):
             self.lbl_camera_capture_state.setText(
                 f"🎬 CAPTURE EN COURS - {num_lines} lignes (~{distance_mm:.1f} mm)"
             )
+
+    # Méthodes Scan Serpentin Caméra
+
+    def log_camera_serpentin(self, message):
+        """Log pour scan serpentin caméra"""
+        timestamp = datetime.now().strftime("%H:%M:%S")
+        self.camera_serpentin_log.append(f"[{timestamp}] {message}")
+        self.camera_serpentin_log.verticalScrollBar().setValue(
+            self.camera_serpentin_log.verticalScrollBar().maximum()
+        )
+        self.log(message)  # Log aussi dans la console principale
+
+    def start_camera_serpentin_scan(self):
+        """Démarrer le scan serpentin de la caméra"""
+        if not self.camera_linear.is_connected:
+            QMessageBox.warning(self, "Erreur", "Caméra non connectée!")
+            return
+
+        if not self.cnc_controller.is_connected:
+            QMessageBox.warning(self, "Erreur", "CNC non connecté!")
+            return
+
+        try:
+            # Paramètres
+            longueur_bande = float(self.camera_serpentin_length.text())
+            largeur_totale = float(self.camera_serpentin_width.text())
+            recouvrement = float(self.camera_serpentin_overlap.text())
+            vitesse_cnc = float(self.camera_serpentin_speed.text())
+
+            # Configuration caméra linéaire
+            largeur_camera_mm = 82.0  # 16384 pixels × 5µm
+            encoder_step_mm = 0.025  # 25 microns
+
+            # Calcul décalage Y avec recouvrement
+            decalage_y = largeur_camera_mm * (1 - recouvrement/100)
+            nb_bandes = int(np.ceil(largeur_totale / decalage_y))
+
+            # Nombre de lignes attendues par bande
+            num_lines_expected = int(longueur_bande / encoder_step_mm)
+            temps_deplacement = (longueur_bande / vitesse_cnc) * 60  # secondes
+
+            self.log_camera_serpentin(f"\n📊 CONFIGURATION SCAN SERPENTIN CAMÉRA:")
+            self.log_camera_serpentin(f"   • Longueur bande X: {longueur_bande:.1f} mm")
+            self.log_camera_serpentin(f"   • Largeur caméra: {largeur_camera_mm:.1f} mm")
+            self.log_camera_serpentin(f"   • Largeur totale Y: {largeur_totale:.1f} mm")
+            self.log_camera_serpentin(f"   • Recouvrement: {recouvrement}% ({largeur_camera_mm * recouvrement/100:.1f}mm)")
+            self.log_camera_serpentin(f"   • 📍 Décalage Y: +{decalage_y:.2f} mm")
+            self.log_camera_serpentin(f"   • Nombre bandes: {nb_bandes}")
+            self.log_camera_serpentin(f"   • Vitesse CNC: {vitesse_cnc} mm/min")
+            self.log_camera_serpentin(f"   • Lignes attendues/bande: {num_lines_expected}")
+            self.log_camera_serpentin(f"   • Temps/bande: {temps_deplacement:.1f}s")
+            self.log_camera_serpentin(f"   • Durée totale: {nb_bandes * temps_deplacement / 60:.1f} min")
+
+            # Confirmation
+            reply = QMessageBox.question(
+                self,
+                "Confirmation Scan Serpentin Caméra",
+                f"📊 Configuration:\n\n"
+                f"• {nb_bandes} bandes × {longueur_bande:.1f}mm\n"
+                f"• Largeur caméra: {largeur_camera_mm:.1f}mm\n"
+                f"• Recouvrement: {recouvrement}%\n"
+                f"• Vitesse: {vitesse_cnc} mm/min\n"
+                f"• Lignes/bande: ~{num_lines_expected}\n"
+                f"• Durée totale: {nb_bandes * temps_deplacement / 60:.1f} min\n\n"
+                f"Lancer le scan?",
+                QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No
+            )
+
+            if reply == QMessageBox.StandardButton.No:
+                return
+
+            # Désactiver bouton start, activer cancel
+            self.btn_camera_scan_start.setEnabled(False)
+            self.btn_camera_scan_cancel.setEnabled(True)
+            self.camera_serpentin_progress.setValue(0)
+
+            # Position départ
+            pos_start_x = self.cnc_controller.work_position['x']
+            pos_start_y = self.cnc_controller.work_position['y']
+
+            self.log_camera_serpentin(f"\n📍 Position départ: X={pos_start_x:.2f}, Y={pos_start_y:.2f}")
+            self.log_camera_serpentin(f"🎯 Scan serpentin en mouvement relatif\n")
+
+            # Créer dossier
+            timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+            output_dir = Path("captures") / f"camera_serpentin_{timestamp}"
+            output_dir.mkdir(parents=True, exist_ok=True)
+
+            scans = []
+            self.scan_cancelled = False
+
+            # Boucle serpentin
+            for i in range(nb_bandes):
+                if self.scan_cancelled:
+                    self.log_camera_serpentin(f"\n🛑 Scan annulé par l'utilisateur")
+                    break
+
+                try:
+                    # Direction alternée
+                    direction = 1 if i % 2 == 0 else -1
+
+                    progress = int((i / nb_bandes) * 100)
+                    self.camera_serpentin_progress.setValue(progress)
+                    self.camera_serpentin_status.setText(f"Bande {i+1}/{nb_bandes}")
+
+                    self.log_camera_serpentin(f"\n{'='*60}")
+                    self.log_camera_serpentin(f"🔄 BANDE {i+1}/{nb_bandes} ({'→' if direction==1 else '←'})")
+
+                    # ÉTAPE 1: Déplacement Y (sauf première bande)
+                    if i > 0:
+                        self.log_camera_serpentin(f"1️⃣ Déplacement Y: +{decalage_y:.2f} mm")
+                        self.cnc_controller.move_relative(y=decalage_y, feed_rate=1000)
+                        self.cnc_controller.wait_idle(timeout=60)
+                        time.sleep(0.5)
+                    else:
+                        self.log_camera_serpentin(f"1️⃣ Bande 0 - Position initiale")
+
+                    # ÉTAPE 2: Pas de repositionnement X (serpentin automatique)
+                    self.log_camera_serpentin(f"2️⃣ Position X OK (serpentin)")
+
+                    # ÉTAPE 3: Capture + mouvement X
+                    delta_x_scan = direction * longueur_bande
+
+                    self.log_camera_serpentin(f"3️⃣ CAPTURE + MOUVEMENT X")
+                    self.log_camera_serpentin(f"   📸 Caméra: attente ~{num_lines_expected} lignes")
+                    self.log_camera_serpentin(f"   🚗 CNC: Δx = {delta_x_scan:+.2f} mm")
+                    self.log_camera_serpentin(f"   🏎️ Vitesse: {vitesse_cnc} mm/min")
+
+                    # Démarrer capture
+                    self.log_camera_serpentin(f"      🟢 Démarrage caméra...")
+                    if not self.camera_linear.start_capture_encoder(test_mode_continuous=False):
+                        self.log_camera_serpentin(f"      ❌ Échec démarrage caméra")
+                        continue
+
+                    time.sleep(0.3)
+
+                    # Lancer mouvement CNC
+                    self.log_camera_serpentin(f"      🔵 Démarrage CNC...")
+                    self.cnc_controller.move_relative(x=delta_x_scan, feed_rate=vitesse_cnc)
+
+                    # Attendre fin CNC
+                    self.log_camera_serpentin(f"      ⏳ Attente fin mouvement...")
+                    self.cnc_controller.wait_idle(timeout=int(temps_deplacement + 60))
+
+                    # Petite pause pour s'assurer que toutes les lignes sont capturées
+                    time.sleep(0.5)
+
+                    # Arrêter capture
+                    self.log_camera_serpentin(f"      🛑 Arrêt capture...")
+                    if not self.camera_linear.stop_capture():
+                        self.log_camera_serpentin(f"      ⚠️ Aucune ligne capturée")
+                        continue
+
+                    # Récupérer la bande
+                    if self.camera_linear.current_band is not None:
+                        band_shape = self.camera_linear.current_band.shape
+                        self.log_camera_serpentin(f"      ✅ {band_shape[0]} lignes capturées")
+
+                        # Sauvegarder la bande
+                        filename = output_dir / f"band_{i:03d}.tiff"
+                        if self.camera_linear.save_current_band(str(filename)):
+                            self.log_camera_serpentin(f"   💾 Sauvegardé: {filename.name}")
+
+                            scan_info = {
+                                'band_id': i,
+                                'direction': 'forward' if direction == 1 else 'backward',
+                                'num_lines': band_shape[0],
+                                'shape': band_shape,
+                                'file': str(filename)
+                            }
+                            scans.append(scan_info)
+
+                            # Vérifier longueur
+                            x_captured = band_shape[0] * encoder_step_mm
+                            self.log_camera_serpentin(f"   📏 Distance: {x_captured:.1f}mm (attendu: {longueur_bande:.1f}mm)")
+
+                            if abs(x_captured - longueur_bande) > 10:
+                                self.log_camera_serpentin(f"   ⚠️ Écart: {abs(x_captured - longueur_bande):.1f}mm")
+                        else:
+                            self.log_camera_serpentin(f"   ❌ Échec sauvegarde")
+                    else:
+                        self.log_camera_serpentin(f"   ❌ Aucune bande capturée")
+
+                    time.sleep(1.0)
+
+                except Exception as e:
+                    self.log_camera_serpentin(f"   ❌ ERREUR bande {i+1}: {e}")
+                    import traceback
+                    traceback.print_exc()
+
+                    reply = QMessageBox.question(
+                        self,
+                        "Erreur",
+                        f"Erreur bande {i+1}:\n{e}\n\nContinuer?",
+                        QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No
+                    )
+
+                    if reply == QMessageBox.StandardButton.No:
+                        break
+
+            # Sauvegarder métadonnées globales
+            metadata = {
+                'scan_type': 'serpentin_camera',
+                'timestamp': timestamp,
+                'configuration': {
+                    'longueur_bande_x_mm': longueur_bande,
+                    'largeur_totale_y_mm': largeur_totale,
+                    'largeur_camera_mm': largeur_camera_mm,
+                    'recouvrement_percent': recouvrement,
+                    'decalage_y_mm': decalage_y,
+                    'vitesse_cnc_mm_min': vitesse_cnc,
+                    'encoder_step_mm': encoder_step_mm,
+                    'nb_bandes_prevues': nb_bandes,
+                    'nb_bandes_realisees': len(scans)
+                },
+                'position_depart': {
+                    'x': pos_start_x,
+                    'y': pos_start_y
+                },
+                'scans': scans
+            }
+
+            metadata_file = output_dir / "scan_metadata.json"
+            with open(metadata_file, 'w') as f:
+                json.dump(metadata, f, indent=2)
+
+            # Fin du scan
+            self.camera_serpentin_progress.setValue(100)
+            self.camera_serpentin_status.setText("✅ Terminé!")
+            self.log_camera_serpentin(f"\n{'='*60}")
+            self.log_camera_serpentin(f"✅ SCAN COMPLET: {len(scans)}/{nb_bandes} bandes")
+            self.log_camera_serpentin(f"📁 {output_dir}")
+
+            QMessageBox.information(
+                self,
+                "Scan Terminé",
+                f"Scan serpentin terminé!\n\n"
+                f"{len(scans)}/{nb_bandes} bandes capturées\n"
+                f"Dossier: {output_dir}"
+            )
+
+        except Exception as e:
+            self.log_camera_serpentin(f"❌ ERREUR CRITIQUE: {e}")
+            import traceback
+            traceback.print_exc()
+            QMessageBox.critical(self, "Erreur", f"Erreur scan serpentin:\n{e}")
+
+        finally:
+            # Réactiver boutons
+            self.btn_camera_scan_start.setEnabled(True)
+            self.btn_camera_scan_cancel.setEnabled(False)
+
+    def cancel_camera_serpentin_scan(self):
+        """Annuler le scan serpentin"""
+        self.scan_cancelled = True
+        self.log_camera_serpentin("🛑 Annulation demandée...")
 
 
 
