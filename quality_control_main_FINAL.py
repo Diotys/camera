@@ -465,22 +465,62 @@ class CameraLinearController:
             self._log("🔍 CONNEXION CAMÉRA LINÉAIRE 16K")
             self._log("=" * 60)
 
-            # Connexion de base via HIFLYCamera
-            if not self.camera.connect():
-                self._log("❌ Échec connexion caméra de base", "error")
-                return False
-
-            # Configuration du trigger externe (encodeur)
-            self._log("🔧 Configuration trigger externe (encodeur)...")
-
             if not MVSDK_AVAILABLE:
                 self._log("❌ SDK MVSDK non disponible", "error")
                 return False
 
-            try:
-                # Obtenir les capacités de la caméra
-                cap = mvsdk.CameraGetCapability(self.camera.hCamera)
+            # ⭐ INITIALISATION COMPLÈTE DE LA CAMÉRA (sans utiliser HIFLYCamera.connect())
+            # pour avoir le contrôle total de la séquence d'initialisation
 
+            # 1. Énumérer et ouvrir la caméra
+            DevList = mvsdk.CameraEnumerateDevice()
+            nDev = len(DevList)
+
+            if nDev < 1:
+                self._log("❌ Aucune caméra trouvée", "error")
+                return False
+
+            self._log(f"✅ {nDev} caméra(s) détectée(s)")
+
+            for i, DevInfo in enumerate(DevList):
+                self._log(f"   {i}: {DevInfo.GetFriendlyName()} {DevInfo.GetPortType()}")
+
+            DevInfo = DevList[0]
+            self._log(f"   📷 Sélection: {DevInfo.GetFriendlyName()}")
+
+            try:
+                self.camera.hCamera = mvsdk.CameraInit(DevInfo, -1, -1)
+                self._log(f"✅ Caméra ouverte (handle: {self.camera.hCamera})")
+            except mvsdk.CameraException as e:
+                self._log(f"❌ CameraInit échoué({e.error_code}): {e.message}", "error")
+                return False
+
+            # 2. Obtenir les capacités de la caméra
+            try:
+                cap = mvsdk.CameraGetCapability(self.camera.hCamera)
+                self.camera.cap = cap
+                self.camera.monoCamera = (cap.sIspCapacity.bMonoSensor != 0)
+                self._log(f"   Type: {'Mono' if self.camera.monoCamera else 'Couleur'}")
+            except Exception as e:
+                self._log(f"❌ Erreur obtention capacités: {e}", "error")
+                return False
+
+            # 3. Configurer le format de sortie ISP
+            try:
+                if self.camera.monoCamera:
+                    mvsdk.CameraSetIspOutFormat(self.camera.hCamera, mvsdk.CAMERA_MEDIA_TYPE_MONO8)
+                    self._log("   ✅ Format ISP: MONO8")
+                else:
+                    mvsdk.CameraSetIspOutFormat(self.camera.hCamera, mvsdk.CAMERA_MEDIA_TYPE_BGR8)
+                    self._log("   ✅ Format ISP: BGR8")
+            except Exception as e:
+                self._log(f"❌ Erreur format ISP: {e}", "error")
+                return False
+
+            # 4. Configurer GPIO et mode trigger (AVANT CameraPlay!)
+            self._log("🔧 Configuration trigger externe (encodeur)...")
+
+            try:
                 # Afficher les modes de trigger disponibles
                 num_trigger_modes = cap.iTriggerDesc
                 self._log(f"   📋 Modes trigger disponibles : {num_trigger_modes}")
@@ -491,28 +531,21 @@ class CameraLinearController:
                     self._log(f"      Mode {i}: {desc}")
 
                 # ⭐ CONFIGURATION GPIO POUR TRIGGER EXTERNE
-                # Pour caméras industrielles, il faut configurer l'entrée GPIO
-                # en mode TRIG_INPUT avant d'activer le mode trigger
-
                 self._log("   🔌 Configuration entrée GPIO pour trigger externe...")
-
                 try:
                     # Configurer GPIO Input 0 en mode TRIG_INPUT (mode 0)
-                    # IOMODE_TRIG_INPUT = 0
                     mvsdk.CameraSetInPutIOMode(self.camera.hCamera, 0, 0)
                     self._log("      ✅ GPIO Input 0 configuré en mode TRIG_INPUT")
                 except Exception as e:
-                    self._log(f"      ⚠️ Config GPIO Input échouée (peut-être non supporté): {e}", "warning")
+                    self._log(f"      ⚠️ Config GPIO Input échouée: {e}", "warning")
 
-                # Configurer mode trigger externe
+                # ⭐ CONFIGURER MODE TRIGGER (AVANT CameraPlay!)
                 # Mode 0 = Continu (free run)
                 # Mode 1 = Software trigger
                 # Mode 2 = FrameTrig (trigger par frame complète)
                 # Mode 3 = LineTrig (trigger par ligne) ← MEILLEUR POUR CAMÉRA LINÉAIRE !
-                # Mode 4+ = Autres modes
 
                 # Pour caméra linéaire avec encodeur, LineTrig (mode 3) est optimal
-                # car l'encodeur génère un signal par ligne
                 if num_trigger_modes > 3:
                     trigger_mode = 3  # LineTrig
                     self._log(f"   🎯 Utilisation Mode 3 'LineTrig' (trigger par ligne)")
@@ -528,27 +561,33 @@ class CameraLinearController:
 
                 # Vérification
                 current_mode = mvsdk.CameraGetTriggerMode(self.camera.hCamera)
-                self._log(f"   ✅ Mode trigger activé: {current_mode}")
+                self._log(f"   ✅ Mode trigger configuré: {current_mode}")
 
                 # ⭐ CONFIGURATION TRIGGER COUNT ET DELAY
                 try:
-                    # Trigger count = 1 (capturer 1 frame par signal trigger)
                     mvsdk.CameraSetTriggerCount(self.camera.hCamera, 1)
                     self._log("      ✅ Trigger count = 1 (1 frame par signal)")
                 except Exception as e:
                     self._log(f"      ⚠️ Config trigger count échouée: {e}", "warning")
 
                 try:
-                    # Trigger delay = 0 µs (pas de délai)
                     mvsdk.CameraSetTriggerDelayTime(self.camera.hCamera, 0)
-                    self._log("      ✅ Trigger delay = 0 µs (réponse immédiate)")
+                    self._log("      ✅ Trigger delay = 0 µs")
                 except Exception as e:
                     self._log(f"      ⚠️ Config trigger delay échouée: {e}", "warning")
 
-                # Réglages optimisés pour caméra linéaire
-                self._log("   ⚙️  Réglages optimisés...")
+            except Exception as e:
+                self._log(f"❌ Erreur configuration trigger: {e}", "error")
+                import traceback
+                self._log(traceback.format_exc(), "error")
+                return False
 
-                # Exposition adaptée
+            # 5. Réglages exposition et gain
+            try:
+                self._log("   ⚙️  Réglages exposition et gain...")
+
+                # Exposition manuelle
+                mvsdk.CameraSetAeState(self.camera.hCamera, 0)
                 mvsdk.CameraSetExposureTime(self.camera.hCamera, int(self.config.exposure_time))
                 self._log(f"      Exposition: {self.config.exposure_time} µs")
 
@@ -558,19 +597,37 @@ class CameraLinearController:
                     self._log(f"      Gain: {self.config.gain}")
                 except Exception:
                     pass
-
-                self.is_connected = True
-                self._log("=" * 60)
-                self._log("✅ CAMÉRA LINÉAIRE PRÊTE - TRIGGER ENCODEUR ACTIF")
-                self._log("=" * 60)
-
-                return True
-
             except Exception as e:
-                self._log(f"❌ Erreur configuration trigger: {e}", "error")
-                import traceback
-                self._log(traceback.format_exc(), "error")
+                self._log(f"⚠️ Erreur réglages: {e}", "warning")
+
+            # 6. Allouer le buffer de frame
+            try:
+                FrameBufferSize = cap.sResolutionRange.iWidthMax * cap.sResolutionRange.iHeightMax * (1 if self.camera.monoCamera else 3)
+                self.camera.pFrameBuffer = mvsdk.CameraAlignMalloc(FrameBufferSize, 16)
+                self._log(f"   ✅ Buffer alloué: {FrameBufferSize} bytes")
+            except Exception as e:
+                self._log(f"❌ Erreur allocation buffer: {e}", "error")
                 return False
+
+            # 7. ⭐ DÉMARRER L'ACQUISITION (avec le bon mode trigger déjà configuré!)
+            try:
+                mvsdk.CameraPlay(self.camera.hCamera)
+                self._log("✅ Acquisition démarrée")
+                time.sleep(0.5)  # Laisser la caméra s'initialiser
+            except Exception as e:
+                self._log(f"❌ Erreur démarrage acquisition: {e}", "error")
+                return False
+
+            # Marquer comme connecté
+            self.camera.is_connected = True
+            self.camera.is_grabbing = True
+            self.is_connected = True
+
+            self._log("=" * 60)
+            self._log("✅ CAMÉRA LINÉAIRE PRÊTE - TRIGGER ENCODEUR ACTIF")
+            self._log("=" * 60)
+
+            return True
 
         except Exception as e:
             self._log(f"❌ Erreur connexion: {e}", "error")
