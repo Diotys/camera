@@ -445,9 +445,14 @@ class CameraLinearController:
         """Logger interne"""
         if self.log_callback:
             try:
+                # Essayer d'abord avec 2 arguments (message, level)
                 self.log_callback(message, level)
-            except Exception as e:
-                print(f"Erreur log callback: {e}")
+            except TypeError:
+                # Sinon avec 1 seul argument (message uniquement)
+                try:
+                    self.log_callback(message)
+                except Exception as e:
+                    print(f"Erreur log callback: {e}")
         else:
             print(f"[{level.upper()}] {message}")
 
@@ -485,6 +490,20 @@ class CameraLinearController:
                     desc = trigger_desc.GetDescription()
                     self._log(f"      Mode {i}: {desc}")
 
+                # ⭐ CONFIGURATION GPIO POUR TRIGGER EXTERNE
+                # Pour caméras industrielles, il faut configurer l'entrée GPIO
+                # en mode TRIG_INPUT avant d'activer le mode trigger
+
+                self._log("   🔌 Configuration entrée GPIO pour trigger externe...")
+
+                try:
+                    # Configurer GPIO Input 0 en mode TRIG_INPUT (mode 0)
+                    # IOMODE_TRIG_INPUT = 0
+                    mvsdk.CameraSetInPutIOMode(self.camera.hCamera, 0, 0)
+                    self._log("      ✅ GPIO Input 0 configuré en mode TRIG_INPUT")
+                except Exception as e:
+                    self._log(f"      ⚠️ Config GPIO Input échouée (peut-être non supporté): {e}", "warning")
+
                 # Configurer mode trigger externe
                 # Mode 0 = Continu (free run)
                 # Mode 1 = Software trigger
@@ -500,6 +519,21 @@ class CameraLinearController:
                 # Vérification
                 current_mode = mvsdk.CameraGetTriggerMode(self.camera.hCamera)
                 self._log(f"   ✅ Mode trigger activé: {current_mode}")
+
+                # ⭐ CONFIGURATION TRIGGER COUNT ET DELAY
+                try:
+                    # Trigger count = 1 (capturer 1 frame par signal trigger)
+                    mvsdk.CameraSetTriggerCount(self.camera.hCamera, 1)
+                    self._log("      ✅ Trigger count = 1 (1 frame par signal)")
+                except Exception as e:
+                    self._log(f"      ⚠️ Config trigger count échouée: {e}", "warning")
+
+                try:
+                    # Trigger delay = 0 µs (pas de délai)
+                    mvsdk.CameraSetTriggerDelayTime(self.camera.hCamera, 0)
+                    self._log("      ✅ Trigger delay = 0 µs (réponse immédiate)")
+                except Exception as e:
+                    self._log(f"      ⚠️ Config trigger delay échouée: {e}", "warning")
 
                 # Réglages optimisés pour caméra linéaire
                 self._log("   ⚙️  Réglages optimisés...")
@@ -581,9 +615,12 @@ class CameraLinearController:
         déclenché par les signaux encodeur externe
         """
         self._log("🔄 Thread capture démarré")
+        self._log(f"   Mode trigger actuel: {mvsdk.CameraGetTriggerMode(self.camera.hCamera)}")
+        self._log(f"   Attente triggers encodeur (timeout: 1s par ligne)...")
 
         consecutive_errors = 0
         max_consecutive_errors = 10
+        timeout_count = 0
 
         while self.capture_running:
             try:
@@ -595,6 +632,9 @@ class CameraLinearController:
                     self.camera.hCamera,
                     1000  # Timeout 1 seconde
                 )
+
+                # Reset timeout counter si succès
+                timeout_count = 0
 
                 # Traitement de l'image
                 mvsdk.CameraImageProcess(
@@ -641,6 +681,11 @@ class CameraLinearController:
             except mvsdk.CameraException as e:
                 if e.error_code == mvsdk.CAMERA_STATUS_TIME_OUT:
                     # Timeout normal si pas de signal encodeur
+                    timeout_count += 1
+                    if timeout_count == 1:
+                        self._log(f"⏳ Attente signal encodeur... (timeout {timeout_count})", "info")
+                    elif timeout_count % 5 == 0:
+                        self._log(f"⏳ Toujours en attente... (timeout {timeout_count})", "warning")
                     time.sleep(0.01)
                     continue
                 else:
