@@ -1,0 +1,122 @@
+board: MKS-DLC32 V2.1
+name: CNC Router 3 Axes
+meta: Configuration avec frein Z sur GPIO 32 (digital output)
+kinematics: {}
+stepping:
+  engine: I2S_STATIC
+  idle_ms: 250
+  pulse_us: 4
+  dir_delay_us: 1
+  disable_delay_us: 0
+axes:
+  shared_stepper_disable_pin: i2so.0
+  x:
+    steps_per_mm: 256.150
+    max_rate_mm_per_min: 5000
+    acceleration_mm_per_sec2: 200
+    max_travel_mm: 450
+    soft_limits: false
+    homing:
+      cycle: 1
+      positive_direction: false
+      mpos_mm: 0
+      feed_mm_per_min: 200
+      seek_mm_per_min: 800
+      settle_ms: 500
+      seek_scaler: 1.1
+      feed_scaler: 1.1
+    motor0:
+      limit_neg_pin: gpio.36
+      limit_pos_pin: NO_PIN
+      hard_limits: false
+      pulloff_mm: 3
+      stepstick:
+        step_pin: I2SO.1
+        direction_pin: I2SO.2
+      limit_all_pin: NO_PIN
+  y:
+    steps_per_mm: 256.150
+    max_rate_mm_per_min: 5000
+    acceleration_mm_per_sec2: 200
+    max_travel_mm: 450
+    soft_limits: false
+    homing:
+      cycle: 1
+      positive_direction: false
+      mpos_mm: 0
+      feed_mm_per_min: 200
+      seek_mm_per_min: 800
+      settle_ms: 500
+      seek_scaler: 1.1
+      feed_scaler: 1.1
+    motor0:
+      limit_neg_pin: gpio.35
+      limit_pos_pin: NO_PIN
+      hard_limits: false
+      pulloff_mm: 3
+      stepstick:
+        step_pin: I2SO.5
+        direction_pin: I2SO.6:low
+      limit_all_pin: NO_PIN
+  z:
+    steps_per_mm: 343.626
+    max_rate_mm_per_min: 1000
+    acceleration_mm_per_sec2: 100
+    max_travel_mm: 50
+    soft_limits: false
+    homing:
+      cycle: 2
+      positive_direction: false
+      mpos_mm: 0
+      feed_mm_per_min: 200
+      seek_mm_per_min: 400
+      settle_ms: 500
+      seek_scaler: 1.1
+      feed_scaler: 1.1
+    motor0:
+      limit_neg_pin: gpio.34
+      limit_pos_pin: NO_PIN
+      hard_limits: false
+      pulloff_mm: 3
+      stepstick:
+        step_pin: I2SO.3
+        direction_pin: I2SO.4
+      limit_all_pin: NO_PIN
+i2so:
+  bck_pin: gpio.16
+  data_pin: gpio.21
+  ws_pin: gpio.17
+spi:
+  miso_pin: gpio.19
+  mosi_pin: gpio.23
+  sck_pin: gpio.18
+sdcard:
+  cs_pin: gpio.5
+  card_detect_pin: NO_PIN
+control:
+  safety_door_pin: NO_PIN
+  reset_pin: NO_PIN
+  feed_hold_pin: NO_PIN
+  cycle_start_pin: NO_PIN
+  macro0_pin: NO_PIN
+  macro1_pin: NO_PIN
+  macro2_pin: NO_PIN
+  macro3_pin: NO_PIN
+coolant:
+  flood_pin: NO_PIN
+  mist_pin: NO_PIN
+  delay_ms: 0
+probe:
+  pin: gpio.22
+  check_mode_start: true
+user_outputs:
+  analog0_pin: NO_PIN
+  analog1_pin: NO_PIN
+  analog2_pin: NO_PIN
+  analog3_pin: NO_PIN
+  digital0_pin: gpio.32
+  digital1_pin: NO_PIN
+  digital2_pin: NO_PIN
+  digital3_pin: NO_PIN
+start:
+  must_home: false
