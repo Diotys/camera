@@ -643,12 +643,15 @@ class CameraLinearController:
         Args:
             test_mode_continuous: Si True, capture en mode continu (sans trigger) pour test
         """
+        # 🐛 DEBUG: État avant démarrage
+        self._log(f"🐛 DEBUG start_capture - is_connected={self.is_connected}, is_capturing={self.is_capturing}, capture_running={self.capture_running}")
+
         if not self.is_connected:
             self._log("❌ Caméra non connectée", "error")
             return False
 
         if self.is_capturing:
-            self._log("⚠️ Capture déjà en cours", "warning")
+            self._log(f"⚠️ BLOQUÉ: Capture déjà en cours (is_capturing={self.is_capturing})", "warning")
             return False
 
         try:
@@ -810,6 +813,9 @@ class CameraLinearController:
         """
         Arrêter la capture et récupérer l'image complète
         """
+        # 🐛 DEBUG: État avant arrêt
+        self._log(f"🐛 DEBUG stop_capture DÉBUT - is_capturing={self.is_capturing}, capture_running={self.capture_running}")
+
         if not self.is_capturing:
             self._log("⚠️ Aucune capture en cours", "warning")
             return False
@@ -819,6 +825,7 @@ class CameraLinearController:
 
             # Arrêter le thread
             self.capture_running = False
+            self._log(f"   capture_running = False")
 
             if self.capture_thread and self.capture_thread.is_alive():
                 self.capture_thread.join(timeout=3.0)
@@ -826,6 +833,7 @@ class CameraLinearController:
 
             # ⭐ TOUJOURS réinitialiser is_capturing (même si erreur ou 0 lignes)
             self.is_capturing = False
+            self._log(f"🐛 DEBUG: is_capturing = False (réinitialisé)")
 
             # Restaurer mode trigger si c'était un test
             if hasattr(self, 'saved_trigger_mode'):
@@ -848,9 +856,13 @@ class CameraLinearController:
 
                     self._log(f"✅ Bande {len(self.image_bands)} créée : {self.current_band.shape}")
 
+                    # 🐛 DEBUG: État final
+                    self._log(f"🐛 DEBUG stop_capture FIN (succès) - is_capturing={self.is_capturing}")
                     return True
                 else:
                     self._log("⚠️ Aucune ligne capturée", "warning")
+                    # 🐛 DEBUG: État final
+                    self._log(f"🐛 DEBUG stop_capture FIN (0 lignes) - is_capturing={self.is_capturing}")
                     return False
 
         except Exception as e:
@@ -861,6 +873,8 @@ class CameraLinearController:
             self._log(f"❌ Erreur arrêt capture: {e}", "error")
             import traceback
             self._log(traceback.format_exc(), "error")
+            # 🐛 DEBUG: État final après erreur
+            self._log(f"🐛 DEBUG stop_capture FIN (erreur) - is_capturing={self.is_capturing}")
             return False
 
     def save_current_band(self, filepath: str) -> bool:
@@ -2927,14 +2941,20 @@ class QualityControlGUI(QMainWindow):
     def stop_camera_capture(self):
         """Arrêter la capture"""
         self.log("⏹️ Arrêt capture...")
+        self.log(f"🐛 DEBUG stop_camera_capture - Appel stop_capture()...")
 
         # ⭐ TOUJOURS réactiver les boutons, même si stop_capture() retourne False
         success = self.camera_linear.stop_capture()
+
+        self.log(f"🐛 DEBUG stop_camera_capture - stop_capture() retourné: {success}")
+        self.log(f"🐛 DEBUG stop_camera_capture - Réactivation des boutons...")
 
         # Réactiver les boutons dans tous les cas
         self.btn_camera_start_capture.setEnabled(True)
         self.btn_camera_test_continuous.setEnabled(True)
         self.btn_camera_stop_capture.setEnabled(False)
+
+        self.log(f"🐛 DEBUG stop_camera_capture - Boutons réactivés!")
 
         if success:
             self.lbl_camera_capture_state.setText("✅ Capture terminée")
