@@ -703,9 +703,9 @@ class CameraLinearController:
         use_soft_trigger = (current_trigger_mode != 0)  # Si pas en mode Continuous
 
         if use_soft_trigger:
-            self._log(f"   Attente triggers encodeur (timeout: 1s par ligne)...")
+            self._log(f"   Attente triggers encodeur externe (timeout: 1s par ligne)...")
         else:
-            self._log(f"   Mode continu - Envoi triggers software pour test...")
+            self._log(f"   Mode continu - Capture automatique (timeout: 2s par frame)...")
 
         consecutive_errors = 0
         max_consecutive_errors = 10
@@ -713,19 +713,15 @@ class CameraLinearController:
 
         while self.capture_running:
             try:
-                # En mode Continuous (0), envoyer un soft trigger pour forcer la capture
-                # (pour caméras linéaires qui ne capturent pas automatiquement)
-                if not use_soft_trigger:
-                    try:
-                        mvsdk.CameraSoftTrigger(self.camera.hCamera)
-                        time.sleep(0.001)  # 1ms entre triggers
-                    except Exception as e:
-                        self._log(f"⚠️ Soft trigger échoué: {e}", "warning")
+                # ⭐ En mode Continuous (0): la caméra capture automatiquement, PAS de soft trigger!
+                # ⭐ En mode External/LineTrig: attendre signal encodeur externe
+                # Les soft triggers ne sont JAMAIS utilisés ici (seulement pour mode Software)
 
                 # Acquisition d'une ligne
+                # Timeout adapté: 2000ms en Continuous (expo 50ms + transfert GigE), 1000ms en trigger
                 pRawData, FrameHead = mvsdk.CameraGetImageBuffer(
                     self.camera.hCamera,
-                    200 if not use_soft_trigger else 1000  # Timeout plus court en mode test
+                    2000 if not use_soft_trigger else 1000
                 )
 
                 # Reset timeout counter si succès
