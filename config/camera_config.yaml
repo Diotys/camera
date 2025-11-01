@@ -1,0 +1,20 @@
+camera:
+  model: "MV-L164C-10G"
+  ip_address: "192.168.0.236"  # ← Mettez l'IP de votre caméra "192.168.2.215"
+  
+  sensor:
+    resolution_x: 16384
+    resolution_y: 6
+    pixel_size_um: 5.0
+    bit_depth: 10
+    color_mode: "RGB"
+  
+  acquisition:
+    line_rate_hz: 25000
+    exposure_time_ms: 0.04
+    gain: 1.0
+    trigger_mode: "encoder"
+    
+  output:
+    format: "RGB10"
+    save_format: "TIFF16"

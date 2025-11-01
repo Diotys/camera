@@ -1,0 +1,19 @@
+keyence:
+  model: "LJ-X8000A"
+  dll_path: "libs/LJX8_IF.dll"  # ← Adaptez selon 32/64-bit
+  
+  network:
+    ip_address: "192.168.0.1"  # ← Mettez l'IP de votre Keyence
+    port: 24691
+    timeout_ms: 5000
+  
+  measurement:
+    sampling_rate_hz: 1000
+    range_mm: 20.0
+    resolution_points: 3200
+    height_unit_um: 0.01
+    
+  output:
+    format: "CSV"
+    save_height: true
+    save_luminance: true

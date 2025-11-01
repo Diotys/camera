@@ -1,0 +1,16 @@
+cnc:
+  # Type de connexion: "serial" ou "websocket"
+  connection_type: "serial"
+  
+  # Paramètres série
+  serial_port: "COM3"  # Changez selon votre port
+  baudrate: 115200
+  
+  # Paramètres WebSocket (si connection_type = "websocket")
+  websocket_url: "ws://192.168.0.100:81"
+  
+  # GPIO pour trigger caméra
+  trigger_gpio: "32"  # digital0_pin dans votre YAML
+  
+  # Référence à votre fichier de config FluidNC
+  yaml_config: "CONFIGMKSDLC32FluidNC.yaml"
