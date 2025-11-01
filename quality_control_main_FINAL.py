@@ -2453,22 +2453,23 @@ class QualityControlGUI(QMainWindow):
         widget = QWidget()
         layout = QVBoxLayout(widget)
         
-        # CAMÉRA
-        camera_group = QGroupBox("📷 Caméra HIFLY")
-        camera_layout = QHBoxLayout(camera_group)
-        
-        self.camera_status_label = QLabel("État: Déconnecté")
-        self.camera_status_label.setStyleSheet("color: red; font-weight: bold;")
-        camera_layout.addWidget(self.camera_status_label)
-        
-        btn_camera_connect = QPushButton("Connecter")
-        btn_camera_connect.clicked.connect(self.connect_camera)
-        camera_layout.addWidget(btn_camera_connect)
-        
-        btn_camera_disconnect = QPushButton("Déconnecter")
-        btn_camera_disconnect.clicked.connect(self.disconnect_camera)
-        camera_layout.addWidget(btn_camera_disconnect)
-        
+        # CAMÉRA - Redirection vers onglet dédié
+        camera_group = QGroupBox("📷 Caméra Linéaire 16K")
+        camera_layout = QVBoxLayout(camera_group)
+
+        info_label = QLabel(
+            "⚠️ La caméra linéaire 16K se configure maintenant dans l'onglet dédié:\n\n"
+            "📸 Caméra 16K\n\n"
+            "Allez dans cet onglet pour :\n"
+            "  • Connecter la caméra avec trigger encodeur\n"
+            "  • Configurer exposition et gain\n"
+            "  • Démarrer capture synchronisée\n"
+            "  • Sauvegarder les bandes d'image"
+        )
+        info_label.setStyleSheet("color: orange; font-style: italic; padding: 10px;")
+        info_label.setWordWrap(True)
+        camera_layout.addWidget(info_label)
+
         layout.addWidget(camera_group)
         
         # KEYENCE
@@ -2875,30 +2876,16 @@ class QualityControlGUI(QMainWindow):
 
 
 
-    def connect_camera(self):
-        self.log("📷 Connexion caméra...")
-        
-        if self.camera.connect():
-            self.camera_status.setText("📷 Caméra: ✅")
-            self.camera_status.setStyleSheet("color: green; font-weight: bold;")
-            self.camera_status_label.setText("État: Connecté")
-            self.camera_status_label.setStyleSheet("color: green; font-weight: bold;")
-            self.log("✅ Caméra connectée")
-        else:
-            self.camera_status.setText("📷 Caméra: ❌")
-            self.camera_status.setStyleSheet("color: red;")
-            self.camera_status_label.setText("État: Échec")
-            self.camera_status_label.setStyleSheet("color: red; font-weight: bold;")
-            self.log("❌ Échec connexion caméra")
-            QMessageBox.critical(self, "Erreur", "Échec connexion caméra HIFLY")
-    
-    def disconnect_camera(self):
-        self.camera.disconnect()
-        self.camera_status.setText("📷 Caméra: ⚪")
-        self.camera_status.setStyleSheet("color: gray;")
-        self.camera_status_label.setText("État: Déconnecté")
-        self.camera_status_label.setStyleSheet("color: gray;")
-        self.log("📷 Caméra déconnectée")
+    # ⚠️ OBSOLÈTE - Anciennes méthodes de connexion caméra
+    # Utiliser l'onglet "📸 Caméra 16K" et les méthodes connect_camera_linear() à la place
+
+    # def connect_camera(self):
+    #     """OBSOLÈTE - Utiliser connect_camera_linear() à la place"""
+    #     pass
+
+    # def disconnect_camera(self):
+    #     """OBSOLÈTE - Utiliser disconnect_camera_linear() à la place"""
+    #     pass
     
     def connect_keyence(self):
         self.log("📊 Connexion Keyence...")
