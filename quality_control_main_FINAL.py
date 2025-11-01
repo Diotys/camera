@@ -600,6 +600,36 @@ class CameraLinearController:
                 except Exception as e:
                     self._log(f"      ⚠️ Config trigger delay échouée: {e}", "warning")
 
+                # ⭐ CONFIGURATION TRIGGER EXTERNE - PARAMÈTRES AVANCÉS (CRUCIAL!)
+                try:
+                    # Jitter Time = filtre anti-rebond
+                    # Si trop élevé, ignore les impulsions rapides de l'encodeur!
+                    # Mettre à 0 ou très bas pour accepter toutes les impulsions
+                    mvsdk.CameraSetExtTrigJitterTime(self.camera.hCamera, 0)
+                    current_jitter = mvsdk.CameraGetExtTrigJitterTime(self.camera.hCamera)
+                    self._log(f"      ✅ Jitter time = {current_jitter} µs (anti-rebond)")
+                except Exception as e:
+                    self._log(f"      ⚠️ Config jitter time échouée: {e}", "warning")
+
+                try:
+                    # Interval Time = temps minimum entre deux triggers
+                    # Mettre bas pour haute fréquence encodeur
+                    mvsdk.CameraSetExtTrigIntervalTime(self.camera.hCamera, 0)
+                    current_interval = mvsdk.CameraGetExtTrigIntervalTime(self.camera.hCamera)
+                    self._log(f"      ✅ Interval time = {current_interval} µs (min entre triggers)")
+                except Exception as e:
+                    self._log(f"      ⚠️ Config interval time échouée: {e}", "warning")
+
+                try:
+                    # Shutter Type pour trigger externe
+                    # Type 0 généralement = Rolling shutter
+                    # Type 1 généralement = Global shutter
+                    mvsdk.CameraSetExtTrigShutterType(self.camera.hCamera, 0)
+                    current_shutter = mvsdk.CameraGetExtTrigShutterType(self.camera.hCamera)
+                    self._log(f"      ✅ Shutter type = {current_shutter}")
+                except Exception as e:
+                    self._log(f"      ⚠️ Config shutter type échouée: {e}", "warning")
+
             except Exception as e:
                 self._log(f"❌ Erreur configuration trigger: {e}", "error")
                 import traceback
