@@ -445,9 +445,14 @@ class CameraLinearController:
         """Logger interne"""
         if self.log_callback:
             try:
+                # Essayer d'abord avec 2 arguments (message, level)
                 self.log_callback(message, level)
-            except Exception as e:
-                print(f"Erreur log callback: {e}")
+            except TypeError:
+                # Sinon avec 1 seul argument (message uniquement)
+                try:
+                    self.log_callback(message)
+                except Exception as e:
+                    print(f"Erreur log callback: {e}")
         else:
             print(f"[{level.upper()}] {message}")
 
