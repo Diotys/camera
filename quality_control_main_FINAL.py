@@ -563,6 +563,25 @@ class CameraLinearController:
                 current_mode = mvsdk.CameraGetTriggerMode(self.camera.hCamera)
                 self._log(f"   ✅ Mode trigger configuré: {current_mode}")
 
+                # ⭐ CONFIGURATION TYPE DE SIGNAL TRIGGER (CRUCIAL POUR ENCODEUR!)
+                # Pour encodeur quadrature: utiliser front montant (leading edge)
+                try:
+                    # EXT_TRIG_LEADING_EDGE = 0 (front montant)
+                    # EXT_TRIG_TRAILING_EDGE = 1 (front descendant)
+                    # EXT_TRIG_DOUBLE_EDGE = 4 (double front)
+                    mvsdk.CameraSetExtTrigSignalType(self.camera.hCamera, mvsdk.EXT_TRIG_LEADING_EDGE)
+                    current_type = mvsdk.CameraGetExtTrigSignalType(self.camera.hCamera)
+                    signal_types = {
+                        0: "Front montant (Leading Edge)",
+                        1: "Front descendant (Trailing Edge)",
+                        2: "Niveau haut (High Level)",
+                        3: "Niveau bas (Low Level)",
+                        4: "Double front (Double Edge)"
+                    }
+                    self._log(f"      ✅ Type signal trigger: {signal_types.get(current_type, current_type)}")
+                except Exception as e:
+                    self._log(f"      ⚠️ Config type signal échouée: {e}", "warning")
+
                 # ⭐ CONFIGURATION TRIGGER COUNT ET DELAY
                 try:
                     mvsdk.CameraSetTriggerCount(self.camera.hCamera, 1)
