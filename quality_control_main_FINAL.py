@@ -535,14 +535,22 @@ class CameraLinearController:
                     desc = trigger_desc.GetDescription()
                     self._log(f"      Mode {i}: {desc}")
 
-                # ⭐ CONFIGURATION GPIO POUR TRIGGER EXTERNE
-                self._log("   🔌 Configuration entrée GPIO pour trigger externe...")
+                #⭐ CONFIGURATION GPIO POUR ENCODEUR (IN1 et IN2 pour Phase A et B!)
+                self._log("   🔌 Configuration entrées GPIO pour encodeur quadrature...")
                 try:
-                    # Configurer GPIO Input 0 en mode TRIG_INPUT (mode 0)
-                    mvsdk.CameraSetInPutIOMode(self.camera.hCamera, 0, 0)
-                    self._log("      ✅ GPIO Input 0 configuré en mode TRIG_INPUT")
+                    # D'après le logiciel HIFLY qui fonctionne:
+                    # EncoderSourceA utilise In1 (GPIO Input 1)
+                    # EncoderSourceB utilise In2 (GPIO Input 2)
+
+                    # Configurer GPIO Input 1 en mode TRIG_INPUT (pour Phase A)
+                    mvsdk.CameraSetInPutIOMode(self.camera.hCamera, 1, 0)  # Input 1 = GPI1 (pins 3/4)
+                    self._log("      ✅ GPIO Input 1 (GPI1+/-) configuré en TRIG_INPUT pour Phase A")
+
+                    # Configurer GPIO Input 2 en mode TRIG_INPUT (pour Phase B)
+                    mvsdk.CameraSetInPutIOMode(self.camera.hCamera, 2, 0)  # Input 2 = GPI2 (pins 5/6)
+                    self._log("      ✅ GPIO Input 2 (GPI2+/-) configuré en TRIG_INPUT pour Phase B")
                 except Exception as e:
-                    self._log(f"      ⚠️ Config GPIO Input échouée: {e}", "warning")
+                    self._log(f"      ⚠️ Config GPIO Inputs échouée: {e}", "warning")
 
                 # ⭐ CONFIGURER MODE TRIGGER (AVANT CameraPlay!)
                 # Mode 0 = Continu (free run)
@@ -602,12 +610,12 @@ class CameraLinearController:
 
                 # ⭐ CONFIGURATION TRIGGER EXTERNE - PARAMÈTRES AVANCÉS (CRUCIAL!)
                 try:
-                    # Jitter Time = filtre anti-rebond
-                    # Si trop élevé, ignore les impulsions rapides de l'encodeur!
-                    # Mettre à 0 ou très bas pour accepter toutes les impulsions
-                    mvsdk.CameraSetExtTrigJitterTime(self.camera.hCamera, 0)
+                    # ExtTriggerFilter (Jitter Time) = filtre anti-rebond
+                    # D'après le logiciel HIFLY qui fonctionne: ExtTriggerFilter = 1000 µs
+                    # Valeur de 1000 µs pour filtrer le bruit tout en acceptant les signaux encodeur
+                    mvsdk.CameraSetExtTrigJitterTime(self.camera.hCamera, 1000)
                     current_jitter = mvsdk.CameraGetExtTrigJitterTime(self.camera.hCamera)
-                    self._log(f"      ✅ Jitter time = {current_jitter} µs (anti-rebond)")
+                    self._log(f"      ✅ ExtTriggerFilter (Jitter) = {current_jitter} µs")
                 except Exception as e:
                     self._log(f"      ⚠️ Config jitter time échouée: {e}", "warning")
 
