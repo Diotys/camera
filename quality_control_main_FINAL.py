@@ -578,10 +578,13 @@ class CameraLinearController:
             self._log(traceback.format_exc(), "error")
             return False
 
-    def start_capture_encoder(self) -> bool:
+    def start_capture_encoder(self, test_mode_continuous: bool = False) -> bool:
         """
         Démarrer la capture synchronisée encodeur
         Similaire à keyence.start_capture_encoder()
+
+        Args:
+            test_mode_continuous: Si True, capture en mode continu (sans trigger) pour test
         """
         if not self.is_connected:
             self._log("❌ Caméra non connectée", "error")
@@ -592,7 +595,15 @@ class CameraLinearController:
             return False
 
         try:
-            self._log("🎬 DÉMARRAGE CAPTURE ENCODEUR")
+            if test_mode_continuous:
+                self._log("🧪 DÉMARRAGE CAPTURE MODE TEST CONTINU (SANS TRIGGER)")
+                # Sauvegarder mode actuel
+                self.saved_trigger_mode = mvsdk.CameraGetTriggerMode(self.camera.hCamera)
+                # Passer en mode continu
+                mvsdk.CameraSetTriggerMode(self.camera.hCamera, 0)
+                self._log("   Mode Continuous activé pour test")
+            else:
+                self._log("🎬 DÉMARRAGE CAPTURE ENCODEUR")
 
             # Reset buffers
             with self.capture_lock:
@@ -610,7 +621,10 @@ class CameraLinearController:
             )
             self.capture_thread.start()
 
-            self._log("✅ Capture encodeur démarrée - En attente de signaux encodeur...")
+            if test_mode_continuous:
+                self._log("✅ Capture test démarrée - Capture en continu...")
+            else:
+                self._log("✅ Capture encodeur démarrée - En attente de signaux encodeur...")
             return True
 
         except Exception as e:
@@ -743,6 +757,12 @@ class CameraLinearController:
                 self.capture_thread.join(timeout=3.0)
 
             self.is_capturing = False
+
+            # Restaurer mode trigger si c'était un test
+            if hasattr(self, 'saved_trigger_mode'):
+                mvsdk.CameraSetTriggerMode(self.camera.hCamera, self.saved_trigger_mode)
+                self._log(f"   Mode trigger restauré: {self.saved_trigger_mode}")
+                delattr(self, 'saved_trigger_mode')
 
             # Assembler les lignes en une image
             with self.capture_lock:
@@ -2702,6 +2722,18 @@ class QualityControlGUI(QMainWindow):
 
         capture_layout.addLayout(btn_layout)
 
+        # Bouton test mode continu
+        test_layout = QHBoxLayout()
+        self.btn_camera_test_continuous = QPushButton("🧪 TEST Mode Continu (sans trigger)")
+        self.btn_camera_test_continuous.setStyleSheet("background-color: #FF9800; color: white; font-weight: bold;")
+        self.btn_camera_test_continuous.clicked.connect(self.start_camera_test_continuous)
+        test_layout.addWidget(self.btn_camera_test_continuous)
+
+        test_info = QLabel("Test diagnostic : capture en continu pour vérifier que la caméra fonctionne")
+        test_info.setStyleSheet("color: gray; font-style: italic; font-size: 10pt;")
+        test_layout.addWidget(test_info)
+        capture_layout.addLayout(test_layout)
+
         layout.addWidget(capture_group)
 
         # Groupe état
@@ -2791,8 +2823,9 @@ class QualityControlGUI(QMainWindow):
 
         self.log("▶️ Démarrage capture encodeur caméra linéaire...")
 
-        if self.camera_linear.start_capture_encoder():
+        if self.camera_linear.start_capture_encoder(test_mode_continuous=False):
             self.btn_camera_start_capture.setEnabled(False)
+            self.btn_camera_test_continuous.setEnabled(False)
             self.btn_camera_stop_capture.setEnabled(True)
             self.lbl_camera_capture_state.setText("🎬 CAPTURE EN COURS")
             self.lbl_camera_capture_state.setStyleSheet("color: green; font-size: 14pt; font-weight: bold;")
@@ -2800,12 +2833,31 @@ class QualityControlGUI(QMainWindow):
         else:
             QMessageBox.critical(self, "Erreur", "Échec démarrage capture encodeur")
 
+    def start_camera_test_continuous(self):
+        """Démarrer la capture en mode test continu (sans trigger)"""
+        if not self.camera_linear.is_connected:
+            QMessageBox.warning(self, "Erreur", "Caméra non connectée!")
+            return
+
+        self.log("🧪 Démarrage TEST mode continu (sans trigger)...")
+
+        if self.camera_linear.start_capture_encoder(test_mode_continuous=True):
+            self.btn_camera_start_capture.setEnabled(False)
+            self.btn_camera_test_continuous.setEnabled(False)
+            self.btn_camera_stop_capture.setEnabled(True)
+            self.lbl_camera_capture_state.setText("🧪 TEST CONTINU EN COURS")
+            self.lbl_camera_capture_state.setStyleSheet("color: orange; font-size: 14pt; font-weight: bold;")
+            self.log("✅ Test mode continu démarré - Capture sans trigger encodeur")
+        else:
+            QMessageBox.critical(self, "Erreur", "Échec démarrage test")
+
     def stop_camera_capture(self):
         """Arrêter la capture"""
         self.log("⏹️ Arrêt capture...")
 
         if self.camera_linear.stop_capture():
             self.btn_camera_start_capture.setEnabled(True)
+            self.btn_camera_test_continuous.setEnabled(True)
             self.btn_camera_stop_capture.setEnabled(False)
             self.lbl_camera_capture_state.setText("✅ Capture terminée")
             self.lbl_camera_capture_state.setStyleSheet("color: blue; font-size: 14pt; font-weight: bold;")
