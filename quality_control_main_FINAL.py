@@ -507,11 +507,21 @@ class CameraLinearController:
                 # Configurer mode trigger externe
                 # Mode 0 = Continu (free run)
                 # Mode 1 = Software trigger
-                # Mode 2+ = Hardware trigger (externe)
+                # Mode 2 = FrameTrig (trigger par frame complète)
+                # Mode 3 = LineTrig (trigger par ligne) ← MEILLEUR POUR CAMÉRA LINÉAIRE !
+                # Mode 4+ = Autres modes
 
-                # Pour caméra linéaire avec encodeur, on utilise généralement le mode 2 ou plus
-                # selon le fabricant (Rising edge, Falling edge, etc.)
-                trigger_mode = 2 if num_trigger_modes > 2 else 1
+                # Pour caméra linéaire avec encodeur, LineTrig (mode 3) est optimal
+                # car l'encodeur génère un signal par ligne
+                if num_trigger_modes > 3:
+                    trigger_mode = 3  # LineTrig
+                    self._log(f"   🎯 Utilisation Mode 3 'LineTrig' (trigger par ligne)")
+                elif num_trigger_modes > 2:
+                    trigger_mode = 2  # FrameTrig
+                    self._log(f"   🎯 Utilisation Mode 2 'FrameTrig' (trigger par frame)")
+                else:
+                    trigger_mode = 1  # Software
+                    self._log(f"   ⚠️ Modes hardware non disponibles, utilisation Software trigger")
 
                 self._log(f"   🎯 Configuration mode trigger: {trigger_mode}")
                 mvsdk.CameraSetTriggerMode(self.camera.hCamera, trigger_mode)
