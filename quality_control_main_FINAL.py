@@ -490,6 +490,20 @@ class CameraLinearController:
                     desc = trigger_desc.GetDescription()
                     self._log(f"      Mode {i}: {desc}")
 
+                # ⭐ CONFIGURATION GPIO POUR TRIGGER EXTERNE
+                # Pour caméras industrielles, il faut configurer l'entrée GPIO
+                # en mode TRIG_INPUT avant d'activer le mode trigger
+
+                self._log("   🔌 Configuration entrée GPIO pour trigger externe...")
+
+                try:
+                    # Configurer GPIO Input 0 en mode TRIG_INPUT (mode 0)
+                    # IOMODE_TRIG_INPUT = 0
+                    mvsdk.CameraSetInPutIOMode(self.camera.hCamera, 0, 0)
+                    self._log("      ✅ GPIO Input 0 configuré en mode TRIG_INPUT")
+                except Exception as e:
+                    self._log(f"      ⚠️ Config GPIO Input échouée (peut-être non supporté): {e}", "warning")
+
                 # Configurer mode trigger externe
                 # Mode 0 = Continu (free run)
                 # Mode 1 = Software trigger
@@ -505,6 +519,21 @@ class CameraLinearController:
                 # Vérification
                 current_mode = mvsdk.CameraGetTriggerMode(self.camera.hCamera)
                 self._log(f"   ✅ Mode trigger activé: {current_mode}")
+
+                # ⭐ CONFIGURATION TRIGGER COUNT ET DELAY
+                try:
+                    # Trigger count = 1 (capturer 1 frame par signal trigger)
+                    mvsdk.CameraSetTriggerCount(self.camera.hCamera, 1)
+                    self._log("      ✅ Trigger count = 1 (1 frame par signal)")
+                except Exception as e:
+                    self._log(f"      ⚠️ Config trigger count échouée: {e}", "warning")
+
+                try:
+                    # Trigger delay = 0 µs (pas de délai)
+                    mvsdk.CameraSetTriggerDelayTime(self.camera.hCamera, 0)
+                    self._log("      ✅ Trigger delay = 0 µs (réponse immédiate)")
+                except Exception as e:
+                    self._log(f"      ⚠️ Config trigger delay échouée: {e}", "warning")
 
                 # Réglages optimisés pour caméra linéaire
                 self._log("   ⚙️  Réglages optimisés...")
