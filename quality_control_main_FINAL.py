@@ -77,11 +77,11 @@ except ImportError:
 @dataclass
 class CameraConfig:
     model: str = "MV-L164C-10G"
-    resolution: Tuple[int, int] = (16384, 6)
+    resolution: Tuple[int, int] = (16384, 4)  # 4 lignes (testé et validé avec logiciel HIFLY)
     pixel_size: float = 5.0
     bit_depth: int = 10
     line_rate: int = 25000
-    exposure_time: float = 5000
+    exposure_time: float = 50000  # 50ms (testé et validé avec logiciel HIFLY)
     gain: float = 50.0
 
 @dataclass
