@@ -586,9 +586,12 @@ class CameraLinearController:
         déclenché par les signaux encodeur externe
         """
         self._log("🔄 Thread capture démarré")
+        self._log(f"   Mode trigger actuel: {mvsdk.CameraGetTriggerMode(self.camera.hCamera)}")
+        self._log(f"   Attente triggers encodeur (timeout: 1s par ligne)...")
 
         consecutive_errors = 0
         max_consecutive_errors = 10
+        timeout_count = 0
 
         while self.capture_running:
             try:
@@ -600,6 +603,9 @@ class CameraLinearController:
                     self.camera.hCamera,
                     1000  # Timeout 1 seconde
                 )
+
+                # Reset timeout counter si succès
+                timeout_count = 0
 
                 # Traitement de l'image
                 mvsdk.CameraImageProcess(
@@ -646,6 +652,11 @@ class CameraLinearController:
             except mvsdk.CameraException as e:
                 if e.error_code == mvsdk.CAMERA_STATUS_TIME_OUT:
                     # Timeout normal si pas de signal encodeur
+                    timeout_count += 1
+                    if timeout_count == 1:
+                        self._log(f"⏳ Attente signal encodeur... (timeout {timeout_count})", "info")
+                    elif timeout_count % 5 == 0:
+                        self._log(f"⏳ Toujours en attente... (timeout {timeout_count})", "warning")
                     time.sleep(0.01)
                     continue
                 else:
